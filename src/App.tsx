@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Stethoscope, Calendar, User, Syringe, FileText, Plus, Activity } from 'lucide-react';
 
 export default function App() {
-  const [registos, setRegistos] = useState([]);
+  const [registos, setRegistos] = useState([]); 
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f0f9ff', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
