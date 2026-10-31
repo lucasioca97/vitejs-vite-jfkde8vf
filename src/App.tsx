@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Stethoscope, Calendar, User, Plus, Activity, Loader2, MapPin, DollarSign, CreditCard, Scale, FileText } from 'lucide-react';
+import { Stethoscope, User, Plus, Activity, Loader2, MapPin, DollarSign } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
 
@@ -171,16 +171,22 @@ export default function App() {
                 {registos.map((registo) => (
                   <div key={registo.id} style={{ padding: '14px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#0f172a', marginBottom: '6px' }}>
-                      <span><User size={16} inline /> Paciente: {registo.paciente} {registo.peso && `(${registo.peso} kg)`}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <User size={16} /> Paciente: {registo.paciente} {registo.peso && `(${registo.peso} kg)`}
+                      </span>
                       <span style={{ fontSize: '0.85rem', color: '#0284c7' }}>{registo.dataProc}</span>
                     </div>
                     <div style={{ fontSize: '0.9rem', color: '#334155', marginBottom: '4px' }}><strong>Procedimento:</strong> {registo.procedimento}</div>
                     {registo.tutor && <div style={{ fontSize: '0.85rem', color: '#475569' }}><strong>Tutor:</strong> {registo.tutor}</div>}
                     {registo.cirurgiao && <div style={{ fontSize: '0.85rem', color: '#475569' }}><strong>Cirurgião:</strong> {registo.cirurgiao}</div>}
-                    {registo.local && <div style={{ fontSize: '0.85rem', color: '#475569' }}><MapPin size={14} inline /> {registo.local}</div>}
+                    {registo.local && (
+                      <div style={{ fontSize: '0.85rem', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <MapPin size={14} /> {registo.local}
+                      </div>
+                    )}
                     {(registo.valor || registo.formaPgto) && (
-                      <div style={{ fontSize: '0.85rem', color: '#166534', marginTop: '4px', fontWeight: '500' }}>
-                        <DollarSign size={14} inline /> {registo.valor} {registo.formaPgto && `via ${registo.formaPgto}`} {registo.dataPgto && `(Pgto: ${registo.dataPgto})`}
+                      <div style={{ fontSize: '0.85rem', color: '#166534', marginTop: '4px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <DollarSign size={14} /> {registo.valor} {registo.formaPgto && `via ${registo.formaPgto}`} {registo.dataPgto && `(Pgto: ${registo.dataPgto})`}
                       </div>
                     )}
                     {registo.observacoes && <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '6px', fontStyle: 'italic' }}>Obs: {registo.observacoes}</div>}
