@@ -64,19 +64,24 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Manipuladores com limitação de caracteres/formatos
+  // Manipulador de Peso
   const handlePesoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Permite apenas números e um ponto ou vírgula, máximo 6 caracteres
     const val = e.target.value.replace(/[^0-9.,]/g, '');
     if (val.length <= 6) {
       setPeso(val);
     }
   };
 
+  // Manipulador de Valor com Formatação de 2 Casas Decimais
   const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Apenas dígitos
-    const val = e.target.value.replace(/[^0-9]/g, '');
-    setValor(val);
+    const apenasDigitos = e.target.value.replace(/\D/g, '');
+    if (!apenasDigitos) {
+      setValor('');
+      return;
+    }
+    const numero = (parseInt(apenasDigitos, 10) / 100).toFixed(2);
+    const formatado = numero.replace('.', ',');
+    setValor(formatado);
   };
 
   const guardarRegisto = async (e: React.FormEvent) => {
@@ -174,7 +179,6 @@ export default function App() {
           borderRadius: '16px', 
           display: 'flex', 
           alignItems: 'center', 
-          justifyContent: 'space-between',
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
           marginBottom: '16px'
         }}>
@@ -187,9 +191,6 @@ export default function App() {
               <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Registro veterinário rápido</p>
             </div>
           </div>
-          <span style={{ backgroundColor: '#1e293b', color: '#38bdf8', padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600' }}>
-            {registos.length} fichas
-          </span>
         </header>
 
         {/* Menu de Abas */}
@@ -343,6 +344,7 @@ export default function App() {
                       inputMode="numeric" 
                       value={valor} 
                       onChange={handleValorChange} 
+                      placeholder="0,00"
                       style={{ width: '100%', padding: '10px 8px', border: 'none', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', backgroundColor: 'transparent' }} 
                     />
                   </div>
@@ -448,7 +450,7 @@ export default function App() {
                     {(registo.valor || registo.formaPgto) && (
                       <div style={{ backgroundColor: '#f0fdf4', padding: '8px 12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#166534', fontWeight: '600' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <DollarSign size={15} /> R$ {registo.valor || '---'} {registo.formaPgto && `(${registo.formaPgto})`}
+                          <DollarSign size={15} /> R$ {registo.valor || '0,00'} {registo.formaPgto && `(${registo.formaPgto})`}
                         </span>
                         {registo.dataPgto ? (
                           <span style={{ fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '3px' }}>
