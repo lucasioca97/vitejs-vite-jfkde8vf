@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   Stethoscope, User, Plus, Activity, Loader2, MapPin, 
   DollarSign, Calendar, FileText, CheckCircle2, Clock, Building2, 
-  Pencil, Trash2, X, Check, Save, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle, TrendingUp, AlertCircle, ShieldAlert
+  Pencil, Trash2, X, Check, Save, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle, TrendingUp, AlertCircle
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
