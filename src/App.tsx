@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Stethoscope, User, Plus, Activity, Loader2, MapPin, 
-  DollarSign, Calendar, FileText, CheckCircle2, Clock, Building2, Pencil, Trash2, X, Check
+  DollarSign, Calendar, FileText, CheckCircle2, Clock, Building2, 
+  Pencil, Trash2, X, Check, Save, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
@@ -24,7 +25,16 @@ export default function App() {
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [salvandoClinica, setSalvandoClinica] = useState(false);
-  const [abaAtiva, setAbaAtiva] = useState<'formulario' | 'historico' | 'clinicas'>('formulario');
+  const [abaAtiva, setAbaAtiva] = useState<'formulario' | 'historico' | 'clinicas' | 'dashboard'>('formulario');
+
+  // Modo de visualização do Histórico (Cards ou Tabela)
+  const [modoVisualizacao, setModoVisualizacao] = useState<'cards' | 'tabela'>('cards');
+
+  // Filtros e Ordenação no Histórico
+  const [buscaHistorico, setBuscaHistorico] = useState('');
+  const [filtroClinicaHistorico, setFiltroClinicaHistorico] = useState('');
+  const [filtroStatusHistorico, setFiltroStatusHistorico] = useState(''); // 'todos', 'pago', 'pendente'
+  const [ordenacaoHistorico, setOrdenacaoHistorico] = useState<'data-desc' | 'data-asc' | 'paciente-asc' | 'paciente-desc'>('data-desc');
 
   // Estados dos Campos da Ficha
   const [dataProc, setDataProc] = useState('');
@@ -33,6 +43,7 @@ export default function App() {
   const [cirurgiao, setCirurgiao] = useState('');
   const [dataPgto, setDataPgto] = useState('');
   const [paciente, setPaciente] = useState('');
+  const [especie, setEspecie] = useState('Cão');
   const [peso, setPeso] = useState('');
   const [formaPgto, setFormaPgto] = useState('');
   const [tutor, setTutor] = useState('');
@@ -43,6 +54,20 @@ export default function App() {
   const [novaClinicaNome, setNovaClinicaNome] = useState('');
   const [clinicaEditandoId, setClinicaEditandoId] = useState<string | null>(null);
   const [nomeEditado, setNomeEditado] = useState('');
+
+  // Estado de Edição da Ficha no Histórico
+  const [fichaEditandoId, setFichaEditandoId] = useState<string | null>(null);
+  const [editFichaData, setEditFichaData] = useState<any>({});
+
+  // Filtros Avançados de Período no Dashboard
+  const [tipoPeriodo, setTipoPeriodo] = useState<'mes' | 'ano' | 'personalizado' | 'todos'>('mes');
+  const [mesFiltro, setMesFiltro] = useState(() => {
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [anoFiltro, setAnoFiltro] = useState(() => String(new Date().getFullYear()));
+  const [dataInicioFiltro, setDataInicioFiltro] = useState('');
+  const [dataFimFiltro, setDataFimFiltro] = useState('');
 
   // Buscar Fichas
   useEffect(() => {
@@ -64,24 +89,30 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Manipulador de Peso
-  const handlePesoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9.,]/g, '');
+  // Manipuladores de Entrada
+  const handlePesoChange = (valRaw: string, isEdit = false) => {
+    const val = valRaw.replace(/[^0-9.,]/g, '');
     if (val.length <= 6) {
-      setPeso(val);
+      if (isEdit) {
+        setEditFichaData((prev: any) => ({ ...prev, peso: val }));
+      } else {
+        setPeso(val);
+      }
     }
   };
 
-  // Manipulador de Valor com Formatação de 2 Casas Decimais
-  const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const apenasDigitos = e.target.value.replace(/\D/g, '');
-    if (!apenasDigitos) {
-      setValor('');
-      return;
+  const handleValorChange = (valRaw: string, isEdit = false) => {
+    const apenasDigitos = valRaw.replace(/\D/g, '');
+    let valFormatado = '';
+    if (apenasDigitos) {
+      const numero = (parseInt(apenasDigitos, 10) / 100).toFixed(2);
+      valFormatado = numero.replace('.', ',');
     }
-    const numero = (parseInt(apenasDigitos, 10) / 100).toFixed(2);
-    const formatado = numero.replace('.', ',');
-    setValor(formatado);
+    if (isEdit) {
+      setEditFichaData((prev: any) => ({ ...prev, valor: valFormatado }));
+    } else {
+      setValor(valFormatado);
+    }
   };
 
   const guardarRegisto = async (e: React.FormEvent) => {
@@ -95,6 +126,7 @@ export default function App() {
         cirurgiao,
         dataPgto,
         paciente,
+        especie,
         peso,
         formaPgto,
         tutor,
@@ -103,13 +135,14 @@ export default function App() {
         dataCriacao: serverTimestamp()
       });
 
-      // Reset formulário
+      // Reset
       setDataProc('');
       setLocal('');
       setValor('');
       setCirurgiao('');
       setDataPgto('');
       setPaciente('');
+      setEspecie('Cão');
       setPeso('');
       setFormaPgto('');
       setTutor('');
@@ -123,6 +156,115 @@ export default function App() {
     setSalvando(false);
   };
 
+  // Funções de Gestão de Fichas
+  const excluirFicha = async (id: string, nomePaciente: string) => {
+    if (confirm(`Tem certeza que deseja excluir a ficha do paciente "${nomePaciente}"?`)) {
+      try {
+        await deleteDoc(doc(db, 'anestesias', id));
+      } catch (error: any) {
+        alert("Erro ao excluir ficha: " + error.message);
+      }
+    }
+  };
+
+  const iniciarEdicaoFicha = (registo: any) => {
+    setFichaEditandoId(registo.id);
+    setEditFichaData({ ...registo });
+  };
+
+  const salvarEdicaoFicha = async (id: string) => {
+    if (!editFichaData.paciente?.trim() || !editFichaData.procedimento?.trim()) {
+      alert("Paciente e Procedimento são obrigatórios.");
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'anestesias', id), {
+        paciente: editFichaData.paciente || '',
+        especie: editFichaData.especie || 'Cão',
+        peso: editFichaData.peso || '',
+        procedimento: editFichaData.procedimento || '',
+        tutor: editFichaData.tutor || '',
+        dataProc: editFichaData.dataProc || '',
+        local: editFichaData.local || '',
+        cirurgiao: editFichaData.cirurgiao || '',
+        valor: editFichaData.valor || '',
+        formaPgto: editFichaData.formaPgto || '',
+        dataPgto: editFichaData.dataPgto || '',
+        observacoes: editFichaData.observacoes || ''
+      });
+      setFichaEditandoId(null);
+    } catch (error: any) {
+      alert("Erro ao atualizar ficha: " + error.message);
+    }
+  };
+
+  // Filtragem e Ordenação do Histórico em tempo real
+  const registosFiltradosEOrdenados = useMemo(() => {
+    return registos.filter(item => {
+      const termo = buscaHistorico.toLowerCase();
+      const bateBusca = 
+        !buscaHistorico || 
+        (item.paciente && item.paciente.toLowerCase().includes(termo)) ||
+        (item.procedimento && item.procedimento.toLowerCase().includes(termo)) ||
+        (item.tutor && item.tutor.toLowerCase().includes(termo)) ||
+        (item.cirurgiao && item.cirurgiao.toLowerCase().includes(termo));
+
+      const bateClinica = !filtroClinicaHistorico || item.local === filtroClinicaHistorico;
+
+      let bateStatus = true;
+      if (filtroStatusHistorico === 'pago') bateStatus = Boolean(item.dataPgto);
+      if (filtroStatusHistorico === 'pendente') bateStatus = !item.dataPgto;
+
+      return bateBusca && bateClinica && bateStatus;
+    }).sort((a, b) => {
+      if (ordenacaoHistorico === 'paciente-asc') {
+        return (a.paciente || '').localeCompare(b.paciente || '');
+      }
+      if (ordenacaoHistorico === 'paciente-desc') {
+        return (b.paciente || '').localeCompare(a.paciente || '');
+      }
+      if (ordenacaoHistorico === 'data-asc') {
+        return (a.dataProc || '').localeCompare(b.dataProc || '');
+      }
+      return (b.dataProc || '').localeCompare(a.dataProc || '');
+    });
+  }, [registos, buscaHistorico, filtroClinicaHistorico, filtroStatusHistorico, ordenacaoHistorico]);
+
+  // Exportar dados filtrados em CSV
+  const exportarCSV = () => {
+    if (registosFiltradosEOrdenados.length === 0) {
+      alert("Não há dados visíveis para exportar.");
+      return;
+    }
+
+    const cabecalho = ["Data Procedimento", "Paciente", "Espécie", "Peso (kg)", "Procedimento", "Tutor", "Local / Clínica", "Cirurgião", "Valor (R$)", "Forma Pagamento", "Data Pagamento", "Observações"];
+    
+    const linhas = registosFiltradosEOrdenados.map(r => [
+      `"${r.dataProc || ''}"`,
+      `"${r.paciente || ''}"`,
+      `"${r.especie || 'Cão'}"`,
+      `"${r.peso || ''}"`,
+      `"${r.procedimento || ''}"`,
+      `"${r.tutor || ''}"`,
+      `"${r.local || ''}"`,
+      `"${r.cirurgiao || ''}"`,
+      `"${r.valor || ''}"`,
+      `"${r.formaPgto || ''}"`,
+      `"${r.dataPgto || ''}"`,
+      `"${(r.observacoes || '').replace(/"/g, '""')}"`
+    ]);
+
+    const conteudoCSV = "\uFEFF" + [cabecalho.join(";"), ...linhas.map(l => l.join(";"))].join("\n");
+    const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fichas_anestesicas_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Funções de Gestão de Clínicas
   const guardarClinica = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novaClinicaNome.trim()) return;
@@ -167,9 +309,71 @@ export default function App() {
     }
   };
 
+  // Métricas do Dashboard com Suporte a Vários Períodos
+  const metricasDashboard = useMemo(() => {
+    const fichasFiltradas = registos.filter(r => {
+      if (!r.dataProc) return false;
+
+      if (tipoPeriodo === 'mes') {
+        return r.dataProc.startsWith(mesFiltro);
+      }
+      if (tipoPeriodo === 'ano') {
+        return r.dataProc.startsWith(anoFiltro);
+      }
+      if (tipoPeriodo === 'personalizado') {
+        if (dataInicioFiltro && r.dataProc < dataInicioFiltro) return false;
+        if (dataFimFiltro && r.dataProc > dataFimFiltro) return false;
+        return true;
+      }
+      // 'todos'
+      return true;
+    });
+
+    let totalGeral = 0;
+    let totalPago = 0;
+    let totalPendente = 0;
+    let caes = 0;
+    let gatos = 0;
+    const porClinica: { [key: string]: number } = {};
+    const porFormaPgto: { [key: string]: number } = {};
+
+    fichasFiltradas.forEach(item => {
+      const numValor = item.valor ? parseFloat(item.valor.replace('.', '').replace(',', '.')) : 0;
+      totalGeral += numValor;
+
+      if (item.dataPgto) {
+        totalPago += numValor;
+      } else {
+        totalPendente += numValor;
+      }
+
+      if (item.especie === 'Gato') gatos++;
+      else caes++;
+
+      if (item.local) {
+        porClinica[item.local] = (porClinica[item.local] || 0) + numValor;
+      }
+
+      if (item.formaPgto) {
+        porFormaPgto[item.formaPgto] = (porFormaPgto[item.formaPgto] || 0) + 1;
+      }
+    });
+
+    return {
+      quantidade: fichasFiltradas.length,
+      totalGeral,
+      totalPago,
+      totalPendente,
+      caes,
+      gatos,
+      porClinica,
+      porFormaPgto
+    };
+  }, [registos, tipoPeriodo, mesFiltro, anoFiltro, dataInicioFiltro, dataFimFiltro]);
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f1f5f9', padding: '12px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '750px', margin: '0 auto' }}>
         
         {/* Topo / Header */}
         <header style={{ 
@@ -194,71 +398,93 @@ export default function App() {
         </header>
 
         {/* Menu de Abas */}
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '12px' }}>
           <button 
             onClick={() => setAbaAtiva('formulario')} 
             style={{ 
               flex: 1, 
-              padding: '10px 6px', 
+              padding: '8px 4px', 
               borderRadius: '8px', 
               border: 'none', 
               backgroundColor: abaAtiva === 'formulario' ? '#ffffff' : 'transparent', 
               color: abaAtiva === 'formulario' ? '#0284c7' : '#64748b', 
               fontWeight: '700', 
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '4px',
+              gap: '3px',
               boxShadow: abaAtiva === 'formulario' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
             }}
           >
-            <Plus size={16} /> Nova Ficha
+            <Plus size={15} /> Nova
           </button>
 
           <button 
             onClick={() => setAbaAtiva('historico')} 
             style={{ 
               flex: 1, 
-              padding: '10px 6px', 
+              padding: '8px 4px', 
               borderRadius: '8px', 
               border: 'none', 
               backgroundColor: abaAtiva === 'historico' ? '#ffffff' : 'transparent', 
               color: abaAtiva === 'historico' ? '#0284c7' : '#64748b', 
               fontWeight: '700', 
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '4px',
+              gap: '3px',
               boxShadow: abaAtiva === 'historico' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
             }}
           >
-            <Activity size={16} /> Histórico
+            <Activity size={15} /> Histórico
           </button>
 
           <button 
             onClick={() => setAbaAtiva('clinicas')} 
             style={{ 
               flex: 1, 
-              padding: '10px 6px', 
+              padding: '8px 4px', 
               borderRadius: '8px', 
               border: 'none', 
               backgroundColor: abaAtiva === 'clinicas' ? '#ffffff' : 'transparent', 
               color: abaAtiva === 'clinicas' ? '#0284c7' : '#64748b', 
               fontWeight: '700', 
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '4px',
+              gap: '3px',
               boxShadow: abaAtiva === 'clinicas' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
             }}
           >
-            <Building2 size={16} /> Clínicas
+            <Building2 size={15} /> Clínicas
+          </button>
+
+          <button 
+            onClick={() => setAbaAtiva('dashboard')} 
+            style={{ 
+              flex: 1, 
+              padding: '8px 4px', 
+              borderRadius: '8px', 
+              border: 'none', 
+              backgroundColor: abaAtiva === 'dashboard' ? '#ffffff' : 'transparent', 
+              color: abaAtiva === 'dashboard' ? '#0284c7' : '#64748b', 
+              fontWeight: '700', 
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '3px',
+              boxShadow: abaAtiva === 'dashboard' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+            }}
+          >
+            <BarChart3 size={15} /> Dashboard
           </button>
         </div>
 
@@ -272,14 +498,25 @@ export default function App() {
                 <User size={16} /> Paciente e Procedimento
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: '8px', marginBottom: '10px' }}>
                 <div style={{ textAlign: 'left' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px', textAlign: 'left' }}>Nome do Paciente</label>
-                  <input type="text" value={paciente} onChange={(e) => setPaciente(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px', textAlign: 'left' }}>Nome Paciente</label>
+                  <input type="text" value={paciente} onChange={(e) => setPaciente(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px', textAlign: 'left' }}>Espécie</label>
+                  <select 
+                    value={especie} 
+                    onChange={(e) => setEspecie(e.target.value)} 
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', backgroundColor: '#ffffff' }}
+                  >
+                    <option value="Cão">Cão</option>
+                    <option value="Gato">Gato</option>
+                  </select>
                 </div>
                 <div style={{ textAlign: 'left' }}>
                   <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px', textAlign: 'left' }}>Peso (kg)</label>
-                  <input type="text" inputMode="decimal" value={peso} onChange={handlePesoChange} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }} />
+                  <input type="text" inputMode="decimal" value={peso} onChange={(e) => handlePesoChange(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               </div>
 
@@ -343,7 +580,7 @@ export default function App() {
                       type="text" 
                       inputMode="numeric" 
                       value={valor} 
-                      onChange={handleValorChange} 
+                      onChange={(e) => handleValorChange(e.target.value)} 
                       placeholder="0,00"
                       style={{ width: '100%', padding: '10px 8px', border: 'none', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', backgroundColor: 'transparent' }} 
                     />
@@ -406,73 +643,371 @@ export default function App() {
         {/* Conteúdo da Aba 2: Histórico */}
         {abaAtiva === 'historico' && (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', padding: '0 4px' }}>
-              <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Activity size={20} color="#0284c7" /> Histórico Recente
-              </h2>
+            {/* Controles do Histórico (Busca, Filtros, Ordenação e Modos de Exibição) */}
+            <div style={{ backgroundColor: '#ffffff', padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', marginBottom: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', textAlign: 'left' }}>
+              
+              {/* Linha 1: Título + Botões de Modo + CSV */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={20} color="#0284c7" /> Histórico ({registosFiltradosEOrdenados.length})
+                </h2>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', backgroundColor: '#e2e8f0', padding: '3px', borderRadius: '8px' }}>
+                    <button 
+                      onClick={() => setModoVisualizacao('cards')} 
+                      title="Cards"
+                      style={{ 
+                        padding: '6px 10px', 
+                        borderRadius: '6px', 
+                        border: 'none', 
+                        backgroundColor: modoVisualizacao === 'cards' ? '#ffffff' : 'transparent', 
+                        color: modoVisualizacao === 'cards' ? '#0284c7' : '#64748b', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <LayoutGrid size={16} />
+                    </button>
+                    <button 
+                      onClick={() => setModoVisualizacao('tabela')} 
+                      title="Tabela"
+                      style={{ 
+                        padding: '6px 10px', 
+                        borderRadius: '6px', 
+                        border: 'none', 
+                        backgroundColor: modoVisualizacao === 'tabela' ? '#ffffff' : 'transparent', 
+                        color: modoVisualizacao === 'tabela' ? '#0284c7' : '#64748b', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <Table size={16} />
+                    </button>
+                  </div>
+
+                  <button 
+                    onClick={exportarCSV} 
+                    title="Exportar CSV"
+                    style={{ 
+                      backgroundColor: '#16a34a', 
+                      color: '#ffffff', 
+                      border: 'none', 
+                      padding: '6px 10px', 
+                      borderRadius: '8px', 
+                      cursor: 'pointer', 
+                      fontWeight: '600', 
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Download size={15} /> CSV
+                  </button>
+                </div>
+              </div>
+
+              {/* Linha 2: Barra de Pesquisa */}
+              <div style={{ position: 'relative', marginBottom: '10px' }}>
+                <Search size={16} color="#64748b" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input 
+                  type="text" 
+                  value={buscaHistorico} 
+                  onChange={(e) => setBuscaHistorico(e.target.value)} 
+                  placeholder="Buscar por paciente, procedimento, tutor ou cirurgião..." 
+                  style={{ width: '100%', padding: '9px 10px 9px 34px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Linha 3: Filtros por Clínica, Status e Ordenação */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '8px' }}>
+                <select 
+                  value={filtroClinicaHistorico} 
+                  onChange={(e) => setFiltroClinicaHistorico(e.target.value)} 
+                  style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.8rem', backgroundColor: '#fff', outline: 'none' }}
+                >
+                  <option value="">Todas Clínicas</option>
+                  {clinicas.map((c) => (
+                    <option key={c.id} value={c.nome}>{c.nome}</option>
+                  ))}
+                </select>
+
+                <select 
+                  value={filtroStatusHistorico} 
+                  onChange={(e) => setFiltroStatusHistorico(e.target.value)} 
+                  style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.8rem', backgroundColor: '#fff', outline: 'none' }}
+                >
+                  <option value="">Todos Status</option>
+                  <option value="pago">Pago</option>
+                  <option value="pendente">Pendente</option>
+                </select>
+
+                <select 
+                  value={ordenacaoHistorico} 
+                  onChange={(e) => setOrdenacaoHistorico(e.target.value as any)} 
+                  style={{ padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.8rem', backgroundColor: '#fff', outline: 'none', fontWeight: '600', color: '#0284c7' }}
+                >
+                  <option value="data-desc">Data (Recentes)</option>
+                  <option value="data-asc">Data (Antigos)</option>
+                  <option value="paciente-asc">Paciente (A-Z)</option>
+                  <option value="paciente-desc">Paciente (Z-A)</option>
+                </select>
+              </div>
+
             </div>
 
-            {registos.length === 0 ? (
+            {registosFiltradosEOrdenados.length === 0 ? (
               <div style={{ backgroundColor: '#ffffff', padding: '32px 16px', borderRadius: '14px', textAlign: 'center', color: '#94a3b8', border: '1px dashed #cbd5e1' }}>
-                Nenhuma ficha cadastrada ainda.
+                Nenhuma ficha encontrada com esses filtros.
               </div>
-            ) : (
+            ) : modoVisualizacao === 'cards' ? (
+              /* MODO CARDS */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {registos.map((registo) => (
+                {registosFiltradosEOrdenados.map((registo) => (
                   <div key={registo.id} style={{ backgroundColor: '#ffffff', borderRadius: '14px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.03)', textAlign: 'left' }}>
                     
-                    {/* Cabeçalho do Card */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                      <div>
-                        <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a' }}>{registo.paciente}</span>
-                        {registo.peso && <span style={{ marginLeft: '6px', fontSize: '0.8rem', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>{registo.peso} kg</span>}
+                    {/* Modo Edição da Ficha */}
+                    {fichaEditandoId === registo.id ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0284c7', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                          Editar Ficha Médica
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: '6px' }}>
+                          <input 
+                            type="text" 
+                            value={editFichaData.paciente || ''} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, paciente: e.target.value })} 
+                            placeholder="Paciente" 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                          />
+                          <select 
+                            value={editFichaData.especie || 'Cão'} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, especie: e.target.value })} 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}
+                          >
+                            <option value="Cão">Cão</option>
+                            <option value="Gato">Gato</option>
+                          </select>
+                          <input 
+                            type="text" 
+                            value={editFichaData.peso || ''} 
+                            onChange={(e) => handlePesoChange(e.target.value, true)} 
+                            placeholder="Peso kg" 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                          />
+                        </div>
+
+                        <input 
+                          type="text" 
+                          value={editFichaData.procedimento || ''} 
+                          onChange={(e) => setEditFichaData({ ...editFichaData, procedimento: e.target.value })} 
+                          placeholder="Procedimento" 
+                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                        />
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <input 
+                            type="text" 
+                            value={editFichaData.tutor || ''} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, tutor: e.target.value })} 
+                            placeholder="Tutor" 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                          />
+                          <input 
+                            type="text" 
+                            value={editFichaData.cirurgiao || ''} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, cirurgiao: e.target.value })} 
+                            placeholder="Cirurgião" 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                          />
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <input 
+                            type="date" 
+                            value={editFichaData.dataProc || ''} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, dataProc: e.target.value })} 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                          />
+                          <select 
+                            value={editFichaData.local || ''} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, local: e.target.value })} 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}
+                          >
+                            <option value="">Selecione Clínica...</option>
+                            {clinicas.map((c) => (
+                              <option key={c.id} value={c.nome}>{c.nome}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <input 
+                            type="text" 
+                            value={editFichaData.valor || ''} 
+                            onChange={(e) => handleValorChange(e.target.value, true)} 
+                            placeholder="Valor R$" 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                          />
+                          <select 
+                            value={editFichaData.formaPgto || ''} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, formaPgto: e.target.value })} 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}
+                          >
+                            <option value="">Forma Pgto...</option>
+                            <option value="PIX">PIX</option>
+                            <option value="Dinheiro">Dinheiro</option>
+                            <option value="Débito">Débito</option>
+                            <option value="Crédito (à Vista)">Crédito (à Vista)</option>
+                            <option value="Crédito (parcelado)">Crédito (parcelado)</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                          <input 
+                            type="date" 
+                            value={editFichaData.dataPgto || ''} 
+                            onChange={(e) => setEditFichaData({ ...editFichaData, dataPgto: e.target.value })} 
+                            style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                          />
+                        </div>
+
+                        <textarea 
+                          value={editFichaData.observacoes || ''} 
+                          onChange={(e) => setEditFichaData({ ...editFichaData, observacoes: e.target.value })} 
+                          placeholder="Observações" 
+                          rows={2} 
+                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} 
+                        />
+
+                        {/* Botões de Ação da Edição */}
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                          <button onClick={() => salvarEdicaoFicha(registo.id)} style={{ flex: 1, backgroundColor: '#16a34a', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.85rem' }}>
+                            <Save size={16} /> Salvar Alterações
+                          </button>
+                          <button onClick={() => setFichaEditandoId(null)} style={{ backgroundColor: '#94a3b8', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.85rem' }}>
+                            <X size={16} /> Cancelar
+                          </button>
+                        </div>
                       </div>
-                      {registo.dataProc && (
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#f8fafc', padding: '4px 8px', borderRadius: '6px' }}>
-                          <Calendar size={12} /> {registo.dataProc}
-                        </span>
-                      )}
-                    </div>
+                    ) : (
+                      /* Exibição Normal Card */
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <div>
+                            <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a' }}>{registo.paciente}</span>
+                            <span style={{ marginLeft: '6px', fontSize: '0.75rem', backgroundColor: registo.especie === 'Gato' ? '#fbcfe8' : '#e0f2fe', color: registo.especie === 'Gato' ? '#9d174d' : '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                              {registo.especie || 'Cão'}
+                            </span>
+                            {registo.peso && <span style={{ marginLeft: '4px', fontSize: '0.75rem', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '12px', fontWeight: '600' }}>{registo.peso} kg</span>}
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {registo.dataProc && (
+                              <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#f8fafc', padding: '4px 8px', borderRadius: '6px', marginRight: '4px' }}>
+                                <Calendar size={12} /> {registo.dataProc}
+                              </span>
+                            )}
+                            <button onClick={() => iniciarEdicaoFicha(registo)} title="Editar Ficha" style={{ backgroundColor: '#e0f2fe', color: '#0284c7', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}>
+                              <Pencil size={15} />
+                            </button>
+                            <button onClick={() => excluirFicha(registo.id, registo.paciente)} title="Excluir Ficha" style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}>
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
 
-                    {/* Procedimento */}
-                    <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155', marginBottom: '8px' }}>
-                      {registo.procedimento}
-                    </div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155', marginBottom: '8px' }}>
+                          {registo.procedimento}
+                        </div>
 
-                    {/* Detalhes Médicos */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.8rem', color: '#64748b', marginBottom: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
-                      {registo.tutor && <div><strong>Tutor:</strong> {registo.tutor}</div>}
-                      {registo.cirurgiao && <div><strong>Cirurgião:</strong> {registo.cirurgiao}</div>}
-                      {registo.local && <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><MapPin size={12} /> {registo.local}</div>}
-                    </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.8rem', color: '#64748b', marginBottom: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+                          {registo.tutor && <div><strong>Tutor:</strong> {registo.tutor}</div>}
+                          {registo.cirurgiao && <div><strong>Cirurgião:</strong> {registo.cirurgiao}</div>}
+                          {registo.local && <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><MapPin size={12} /> {registo.local}</div>}
+                        </div>
 
-                    {/* Detalhes Financeiros */}
-                    {(registo.valor || registo.formaPgto) && (
-                      <div style={{ backgroundColor: '#f0fdf4', padding: '8px 12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#166534', fontWeight: '600' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <DollarSign size={15} /> R$ {registo.valor || '0,00'} {registo.formaPgto && `(${registo.formaPgto})`}
-                        </span>
-                        {registo.dataPgto ? (
-                          <span style={{ fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <CheckCircle2 size={12} /> Pago em {registo.dataPgto}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '0.75rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <Clock size={12} /> Pendente
-                          </span>
+                        {(registo.valor || registo.formaPgto) && (
+                          <div style={{ backgroundColor: '#f0fdf4', padding: '8px 12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: '#166534', fontWeight: '600' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <DollarSign size={15} /> R$ {registo.valor || '0,00'} {registo.formaPgto && `(${registo.formaPgto})`}
+                            </span>
+                            {registo.dataPgto ? (
+                              <span style={{ fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <CheckCircle2 size={12} /> Pago em {registo.dataPgto}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <Clock size={12} /> Pendente
+                              </span>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    )}
 
-                    {/* Observações */}
-                    {registo.observacoes && (
-                      <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#475569', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', fontStyle: 'italic', borderLeft: '3px solid #cbd5e1' }}>
-                        {registo.observacoes}
-                      </div>
+                        {registo.observacoes && (
+                          <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#475569', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', fontStyle: 'italic', borderLeft: '3px solid #cbd5e1' }}>
+                            {registo.observacoes}
+                          </div>
+                        )}
+                      </>
                     )}
 
                   </div>
                 ))}
+              </div>
+            ) : (
+              /* MODO TABELA */
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', overflowX: 'auto', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
+                      <th style={{ padding: '10px 12px' }}>Data</th>
+                      <th style={{ padding: '10px 12px' }}>Paciente</th>
+                      <th style={{ padding: '10px 12px' }}>Procedimento</th>
+                      <th style={{ padding: '10px 12px' }}>Clínica</th>
+                      <th style={{ padding: '10px 12px' }}>Valor</th>
+                      <th style={{ padding: '10px 12px' }}>Status</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registosFiltradosEOrdenados.map((registo) => (
+                      <tr key={registo.id} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
+                        <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>{registo.dataProc || '---'}</td>
+                        <td style={{ padding: '10px 12px', fontWeight: '700' }}>
+                          {registo.paciente}
+                          <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: '500', color: registo.especie === 'Gato' ? '#be185d' : '#0284c7' }}>
+                            {registo.especie || 'Cão'} {registo.peso ? `(${registo.peso}kg)` : ''}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>{registo.procedimento}</td>
+                        <td style={{ padding: '10px 12px' }}>{registo.local || '---'}</td>
+                        <td style={{ padding: '10px 12px', fontWeight: '600' }}>R$ {registo.valor || '0,00'}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          {registo.dataPgto ? (
+                            <span style={{ color: '#15803d', fontWeight: '600', fontSize: '0.75rem', backgroundColor: '#f0fdf4', padding: '2px 6px', borderRadius: '4px' }}>Pago</span>
+                          ) : (
+                            <span style={{ color: '#b45309', fontWeight: '600', fontSize: '0.75rem', backgroundColor: '#fffbeb', padding: '2px 6px', borderRadius: '4px' }}>Pendente</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'inline-flex', gap: '4px' }}>
+                            <button onClick={() => { setModoVisualizacao('cards'); iniciarEdicaoFicha(registo); }} title="Editar" style={{ backgroundColor: '#e0f2fe', color: '#0284c7', border: 'none', padding: '5px', borderRadius: '5px', cursor: 'pointer' }}>
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => excluirFicha(registo.id, registo.paciente)} title="Excluir" style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '5px', borderRadius: '5px', cursor: 'pointer' }}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -519,7 +1054,7 @@ export default function App() {
               </button>
             </form>
 
-            {/* Lista de Clínicas Cadastradas com Edição e Exclusão */}
+            {/* Lista de Clínicas Cadastradas */}
             <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', textAlign: 'left' }}>
               <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#0f172a', marginTop: 0, marginBottom: '12px' }}>Clínicas Cadastradas ({clinicas.length})</h3>
               
@@ -563,6 +1098,154 @@ export default function App() {
                         </>
                       )}
 
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* Conteúdo da Aba 4: Dashboard */}
+        {abaAtiva === 'dashboard' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
+            
+            {/* Controles de Filtro de Período no Dashboard */}
+            <div style={{ backgroundColor: '#ffffff', padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Filter size={16} color="#0284c7" /> Período da Análise:
+                </label>
+
+                <select 
+                  value={tipoPeriodo} 
+                  onChange={(e) => setTipoPeriodo(e.target.value as any)} 
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none', fontWeight: '600', backgroundColor: '#f8fafc', color: '#0284c7' }}
+                >
+                  <option value="mes">Mês Específico</option>
+                  <option value="ano">Ano Inteiro</option>
+                  <option value="personalizado">Período Personalizado</option>
+                  <option value="todos">Todo o Histórico</option>
+                </select>
+              </div>
+
+              {/* Input Dinâmico de Acordo com o Tipo Selecionado */}
+              {tipoPeriodo === 'mes' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '600' }}>Mês/Ano:</span>
+                  <input 
+                    type="month" 
+                    value={mesFiltro} 
+                    onChange={(e) => setMesFiltro(e.target.value)} 
+                    style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none', fontWeight: '600' }} 
+                  />
+                </div>
+              )}
+
+              {tipoPeriodo === 'ano' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '600' }}>Ano:</span>
+                  <input 
+                    type="number" 
+                    value={anoFiltro} 
+                    onChange={(e) => setAnoFiltro(e.target.value)} 
+                    placeholder="2026"
+                    style={{ width: '100px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none', fontWeight: '600' }} 
+                  />
+                </div>
+              )}
+
+              {tipoPeriodo === 'personalizado' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '600', display: 'block', marginBottom: '2px' }}>De:</label>
+                    <input 
+                      type="date" 
+                      value={dataInicioFiltro} 
+                      onChange={(e) => setDataInicioFiltro(e.target.value)} 
+                      style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }} 
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '600', display: 'block', marginBottom: '2px' }}>Até:</label>
+                    <input 
+                      type="date" 
+                      value={dataFimFiltro} 
+                      onChange={(e) => setDataFimFiltro(e.target.value)} 
+                      style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }} 
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Grid de Cards Médicos/Financeiros */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              
+              <div style={{ backgroundColor: '#ffffff', padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b', marginBottom: '4px' }}>Total Faturado</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0284c7' }}>
+                  R$ {metricasDashboard.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#ffffff', padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#64748b', marginBottom: '4px' }}>Procedimentos</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0f172a' }}>
+                  {metricasDashboard.quantidade} <span style={{ fontSize: '0.8rem', fontWeight: '500', color: '#64748b' }}>fichas</span>
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#f0fdf4', padding: '14px', borderRadius: '14px', border: '1px solid #bbf7d0' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#166534', marginBottom: '4px' }}>Total Recebido</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#15803d' }}>
+                  R$ {metricasDashboard.totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#fffbeb', padding: '14px', borderRadius: '14px', border: '1px solid #fde68a' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Pendente</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#b45309' }}>
+                  R$ {metricasDashboard.totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Resumo por Espécie */}
+            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0284c7', textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Dog size={16} /> Pacientes por Espécie
+              </div>
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <div style={{ flex: 1, backgroundColor: '#e0f2fe', padding: '10px', borderRadius: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: '600' }}>Cães</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#0284c7' }}>{metricasDashboard.caes}</div>
+                </div>
+                <div style={{ flex: 1, backgroundColor: '#fbcfe8', padding: '10px', borderRadius: '10px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#9d174d', fontWeight: '600' }}>Gatos</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#be185d' }}>{metricasDashboard.gatos}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Faturamento por Clínica */}
+            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0284c7', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Building2 size={16} /> Faturamento por Clínica
+              </div>
+
+              {Object.keys(metricasDashboard.porClinica).length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0, textAlign: 'center' }}>Nenhum procedimento registrado neste período.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {Object.entries(metricasDashboard.porClinica).map(([nomeClinica, valorTotal]) => (
+                    <div key={nomeClinica} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#334155' }}>{nomeClinica}</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#16a34a' }}>
+                        R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
                     </div>
                   ))}
                 </div>
