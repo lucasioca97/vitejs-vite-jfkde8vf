@@ -61,6 +61,11 @@ export default function App() {
   const [complexidade, setComplexidade] = useState('Média');
   const [observacoes, setObservacoes] = useState('');
 
+  // Estado para a Janela (Modal) de Quitação
+  const [modalQuitacao, setModalQuitacao] = useState<{ id: string; paciente: string } | null>(null);
+  const [quitFormaPgto, setQuitFormaPgto] = useState('PIX');
+  const [quitDataPgto, setQuitDataPgto] = useState(() => new Date().toISOString().slice(0, 10));
+
   // Cadastro e Edição de Clínica
   const [novaClinicaNome, setNovaClinicaNome] = useState('');
   const [clinicaEditandoId, setClinicaEditandoId] = useState<string | null>(null);
@@ -186,16 +191,33 @@ export default function App() {
     setSalvando(false);
   };
 
-  const quitarProcedimento = async (id: string, nomePaciente: string) => {
-    const hojeStr = new Date().toISOString().slice(0, 10);
-    if (confirm(`Confirmar o recebimento da ficha do paciente "${nomePaciente}" na data de hoje (${hojeStr})?`)) {
-      try {
-        await updateDoc(doc(db, 'anestesias', id), {
-          dataPgto: hojeStr
-        });
-      } catch (error: any) {
-        alert("Erro ao quitar procedimento: " + error.message);
-      }
+  // Abrir Modal de Quitação
+  const abrirModalQuitacao = (id: string, nomePaciente: string) => {
+    setModalQuitacao({ id, paciente: nomePaciente });
+    setQuitFormaPgto('PIX');
+    setQuitDataPgto(new Date().toISOString().slice(0, 10));
+  };
+
+  // Confirmar Quitação com Forma e Data de Pagamento
+  const confirmarQuitacao = async () => {
+    if (!modalQuitacao) return;
+    if (!quitFormaPgto) {
+      alert("Por favor, selecione a forma de pagamento.");
+      return;
+    }
+    if (!quitDataPgto) {
+      alert("Por favor, selecione a data do pagamento.");
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'anestesias', modalQuitacao.id), {
+        dataPgto: quitDataPgto,
+        formaPgto: quitFormaPgto
+      });
+      setModalQuitacao(null);
+    } catch (error: any) {
+      alert("Erro ao quitar procedimento: " + error.message);
     }
   };
 
@@ -777,7 +799,7 @@ export default function App() {
                             {registo.dataPgto ? (
                               <span style={{ fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '3px' }}><CheckCircle2 size={13} /> Pago em {registo.dataPgto}</span>
                             ) : (
-                              <button onClick={() => quitarProcedimento(registo.id, registo.paciente)} style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <button onClick={() => abrirModalQuitacao(registo.id, registo.paciente)} style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <CheckCircle size={13} /> Quitar
                               </button>
                             )}
@@ -833,7 +855,7 @@ export default function App() {
                             {registo.dataPgto ? (
                               <span style={{ color: '#15803d', fontWeight: '600', fontSize: '0.75rem', backgroundColor: '#f0fdf4', padding: '2px 6px', borderRadius: '4px' }}>Pago</span>
                             ) : (
-                              <button onClick={() => quitarProcedimento(registo.id, registo.paciente)} style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <button onClick={() => abrirModalQuitacao(registo.id, registo.paciente)} style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
                                 <Clock size={12} /> Quitar
                               </button>
                             )}
@@ -1221,6 +1243,78 @@ export default function App() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* Modal de Quitação */}
+        {modalQuitacao && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px'
+          }}>
+            <div style={{
+              backgroundColor: '#ffffff', borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '400px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle size={20} color="#16a34a" /> Realizar Quitação
+                </h3>
+                <button onClick={() => setModalQuitacao(null)} style={{ border: 'none', backgroundColor: 'transparent', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p style={{ fontSize: '0.85rem', color: '#475569', marginTop: 0, marginBottom: '16px' }}>
+                Paciente: <strong style={{ color: '#0f172a' }}>{modalQuitacao.paciente}</strong>
+              </p>
+
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Forma de Pagamento *
+                </label>
+                <select
+                  value={quitFormaPgto}
+                  onChange={(e) => setQuitFormaPgto(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', backgroundColor: '#ffffff', fontWeight: '600' }}
+                >
+                  <option value="PIX">PIX</option>
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="Débito">Débito</option>
+                  <option value="Crédito (à Vista)">Crédito (à Vista)</option>
+                  <option value="Crédito (parcelado)">Crédito (parcelado)</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Data do Pagamento *
+                </label>
+                <input
+                  type="date"
+                  value={quitDataPgto}
+                  onChange={(e) => setQuitDataPgto(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', fontWeight: '600' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setModalQuitacao(null)}
+                  style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', backgroundColor: '#f1f5f9', color: '#475569', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarQuitacao}
+                  style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', backgroundColor: '#16a34a', color: '#ffffff', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)' }}
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
