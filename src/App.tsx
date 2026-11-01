@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   Stethoscope, User, Plus, Activity, Loader2, MapPin, 
   DollarSign, Calendar, FileText, CheckCircle2, Clock, Building2, 
-  Pencil, Trash2, X, Check, Save, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle, TrendingUp, AlertCircle
+  Pencil, Trash2, X, Check, Save, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle, TrendingUp, AlertCircle, ShieldAlert
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
@@ -58,6 +58,7 @@ export default function App() {
   const [formaPgto, setFormaPgto] = useState('');
   const [tutor, setTutor] = useState('');
   const [procedimento, setProcedimento] = useState('');
+  const [complexidade, setComplexidade] = useState('Média');
   const [observacoes, setObservacoes] = useState('');
 
   // Cadastro e Edição de Clínica
@@ -159,6 +160,7 @@ export default function App() {
         formaPgto,
         tutor,
         procedimento,
+        complexidade,
         observacoes,
         dataCriacao: serverTimestamp()
       });
@@ -174,6 +176,7 @@ export default function App() {
       setFormaPgto('');
       setTutor('');
       setProcedimento('');
+      setComplexidade('Média');
       setObservacoes('');
 
       setAbaAtiva('historico');
@@ -208,7 +211,7 @@ export default function App() {
 
   const iniciarEdicaoFicha = (registo: any) => {
     setFichaEditandoId(registo.id);
-    setEditFichaData({ ...registo });
+    setEditFichaData({ ...registo, complexidade: registo.complexidade || 'Média' });
   };
 
   const salvarEdicaoFicha = async (id: string) => {
@@ -222,6 +225,7 @@ export default function App() {
         especie: editFichaData.especie || 'Cão',
         peso: editFichaData.peso || '',
         procedimento: editFichaData.procedimento || '',
+        complexidade: editFichaData.complexidade || 'Média',
         tutor: editFichaData.tutor || '',
         dataProc: editFichaData.dataProc || '',
         local: editFichaData.local || '',
@@ -267,9 +271,9 @@ export default function App() {
       alert("Não há dados visíveis para exportar.");
       return;
     }
-    const cabecalho = ["Data Procedimento", "Paciente", "Espécie", "Peso (kg)", "Procedimento", "Tutor", "Local / Clínica", "Cirurgião", "Valor (R$)", "Forma Pagamento", "Data Pagamento", "Observações"];
+    const cabecalho = ["Data Procedimento", "Paciente", "Espécie", "Peso (kg)", "Procedimento", "Complexidade", "Tutor", "Local / Clínica", "Cirurgião", "Valor (R$)", "Forma Pagamento", "Data Pagamento", "Observações"];
     const linhas = registosFiltradosEOrdenados.map(r => [
-      `"${r.dataProc || ''}"`, `"${r.paciente || ''}"`, `"${r.especie || 'Cão'}"`, `"${r.peso || ''}"`, `"${r.procedimento || ''}"`, `"${r.tutor || ''}"`, `"${r.local || ''}"`, `"${r.cirurgiao || ''}"`, `"${r.valor || ''}"`, `"${r.formaPgto || ''}"`, `"${r.dataPgto || ''}"`, `"${(r.observacoes || '').replace(/"/g, '""')}"`
+      `"${r.dataProc || ''}"`, `"${r.paciente || ''}"`, `"${r.especie || 'Cão'}"`, `"${r.peso || ''}"`, `"${r.procedimento || ''}"`, `"${r.complexidade || 'Média'}"`, `"${r.tutor || ''}"`, `"${r.local || ''}"`, `"${r.cirurgiao || ''}"`, `"${r.valor || ''}"`, `"${r.formaPgto || ''}"`, `"${r.dataPgto || ''}"`, `"${(r.observacoes || '').replace(/"/g, '""')}"`
     ]);
     const conteudoCSV = "\uFEFF" + [cabecalho.join(";"), ...linhas.map(l => l.join(";"))].join("\n");
     const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
@@ -333,7 +337,21 @@ export default function App() {
     } catch (error: any) { alert("Erro ao atualizar cirurgião: " + error.message); }
   };
 
-  // Métricas do Dashboard com Rosca Expandida
+  // Função auxiliar para cor de badge por complexidade
+  const getBadgeComplexidade = (nivel: string) => {
+    switch (nivel) {
+      case 'Baixa':
+        return { bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' };
+      case 'Alta':
+        return { bg: '#fff7ed', color: '#c2410c', border: '#ffedd5' };
+      case 'Crítica / Especial':
+        return { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' };
+      default: // Média
+        return { bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' };
+    }
+  };
+
+  // Métricas do Dashboard
   const metricasDashboard = useMemo(() => {
     const fichasFiltradas = registos.filter(r => {
       if (!r.dataProc) return false;
@@ -382,7 +400,6 @@ export default function App() {
 
     const taxaRecebimento = totalGeral > 0 ? (totalPago / totalGeral) * 100 : 0;
 
-    // Arcos SVG da Rosca Expandida (Raio 115px no centro 140,140)
     const listaClinicasGrafico = Object.entries(porClinica).sort((a, b) => b[1] - a[1]);
     let anguloAcumulado = 0;
 
@@ -475,10 +492,19 @@ export default function App() {
         {/* Formulário */}
         {abaAtiva === 'formulario' && (
           <form onSubmit={guardarRegisto} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+            
+            {/* Paciente, Data e Procedimento */}
             <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', textAlign: 'left' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0284c7', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <User size={16} /> Paciente e Procedimento
               </div>
+
+              {/* DATA DO PROCEDIMENTO NO PRIMEIRO BLOCO */}
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#0284c7', display: 'block', marginBottom: '4px' }}>Data do Procedimento</label>
+                <input type="date" value={dataProc} onChange={(e) => setDataProc(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #0284c7', fontSize: '0.95rem', fontWeight: '700', outline: 'none', boxSizing: 'border-box', backgroundColor: '#f0f9ff' }} />
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: '8px', marginBottom: '10px' }}>
                 <div>
                   <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px' }}>Nome Paciente</label>
@@ -496,25 +522,38 @@ export default function App() {
                   <input type="text" inputMode="decimal" value={peso} onChange={(e) => handlePesoChange(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               </div>
-              <div style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px' }}>Procedimento</label>
-                <input type="text" value={procedimento} onChange={(e) => setProcedimento(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }} />
+
+              {/* PROCEDIMENTO E COMPLEXIDADE (4 NÍVEIS) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px' }}>Procedimento</label>
+                  <input type="text" value={procedimento} onChange={(e) => setProcedimento(e.target.value)} required placeholder="Ex: Mastectomia, OSH..." style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px' }}>Complexidade</label>
+                  <select value={complexidade} onChange={(e) => setComplexidade(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', backgroundColor: '#ffffff', fontWeight: '600' }}>
+                    <option value="Baixa">🟢 Baixa</option>
+                    <option value="Média">🔵 Média</option>
+                    <option value="Alta">🟠 Alta</option>
+                    <option value="Crítica / Especial">🔴 Crítica / Especial</option>
+                  </select>
+                </div>
               </div>
+
               <div>
                 <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px' }}>Nome do Tutor</label>
                 <input type="text" value={tutor} onChange={(e) => setTutor(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }} />
               </div>
             </div>
 
+            {/* Local e Equipe */}
             <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', textAlign: 'left' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0284c7', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <MapPin size={16} /> Local e Equipe
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '4px' }}>Data do Procedimento</label>
-                  <input type="date" value={dataProc} onChange={(e) => setDataProc(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
-                </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569' }}>Local / Clínica</label>
@@ -525,19 +564,21 @@ export default function App() {
                     {clinicas.map((item) => (<option key={item.id} value={item.nome}>{item.nome}</option>))}
                   </select>
                 </div>
-              </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569' }}>Cirurgião Responsável</label>
-                  <button type="button" onClick={() => setAbaAtiva('cirurgioes')} style={{ border: 'none', backgroundColor: '#e0f2fe', color: '#0284c7', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}><Plus size={12} /> Cirurgião</button>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569' }}>Cirurgião Responsável</label>
+                    <button type="button" onClick={() => setAbaAtiva('cirurgioes')} style={{ border: 'none', backgroundColor: '#e0f2fe', color: '#0284c7', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}><Plus size={12} /> Cirurgião</button>
+                  </div>
+                  <select value={cirurgiao} onChange={(e) => setCirurgiao(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', backgroundColor: '#ffffff' }}>
+                    <option value="">Selecione...</option>
+                    {cirurgioes.map((item) => (<option key={item.id} value={item.nome}>{item.nome}</option>))}
+                  </select>
                 </div>
-                <select value={cirurgiao} onChange={(e) => setCirurgiao(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box', backgroundColor: '#ffffff' }}>
-                  <option value="">Selecione...</option>
-                  {cirurgioes.map((item) => (<option key={item.id} value={item.nome}>{item.nome}</option>))}
-                </select>
               </div>
             </div>
 
+            {/* Financeiro */}
             <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', textAlign: 'left' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#16a34a', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <DollarSign size={16} /> Financeiro e Pagamento
@@ -568,6 +609,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* Observações */}
             <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', textAlign: 'left' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                 <FileText size={16} color="#64748b" /> Observações Clínicas
@@ -627,102 +669,130 @@ export default function App() {
               <div style={{ backgroundColor: '#ffffff', padding: '32px 16px', borderRadius: '16px', textAlign: 'center', color: '#94a3b8', border: '1px dashed #cbd5e1' }}>Nenhuma ficha encontrada.</div>
             ) : modoVisualizacao === 'cards' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {registosFiltradosEOrdenados.map((registo) => (
-                  <div key={registo.id} style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', textAlign: 'left' }}>
-                    {fichaEditandoId === registo.id ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0284c7', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>Editar Ficha Médica</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: '6px' }}>
-                          <input type="text" value={editFichaData.paciente || ''} onChange={(e) => setEditFichaData({ ...editFichaData, paciente: e.target.value })} placeholder="Paciente" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                          <select value={editFichaData.especie || 'Cão'} onChange={(e) => setEditFichaData({ ...editFichaData, especie: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
-                            <option value="Cão">Cão</option>
-                            <option value="Gato">Gato</option>
-                          </select>
-                          <input type="text" value={editFichaData.peso || ''} onChange={(e) => handlePesoChange(e.target.value, true)} placeholder="Peso kg" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                        </div>
-                        <input type="text" value={editFichaData.procedimento || ''} onChange={(e) => setEditFichaData({ ...editFichaData, procedimento: e.target.value })} placeholder="Procedimento" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <input type="text" value={editFichaData.tutor || ''} onChange={(e) => setEditFichaData({ ...editFichaData, tutor: e.target.value })} placeholder="Tutor" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                          <select value={editFichaData.cirurgiao || ''} onChange={(e) => setEditFichaData({ ...editFichaData, cirurgiao: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
-                            <option value="">Cirurgião...</option>
-                            {cirurgioes.map((c) => (<option key={c.id} value={c.nome}>{c.nome}</option>))}
-                          </select>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <input type="date" value={editFichaData.dataProc || ''} onChange={(e) => setEditFichaData({ ...editFichaData, dataProc: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                          <select value={editFichaData.local || ''} onChange={(e) => setEditFichaData({ ...editFichaData, local: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
-                            <option value="">Clínica...</option>
-                            {clinicas.map((c) => (<option key={c.id} value={c.nome}>{c.nome}</option>))}
-                          </select>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <input type="text" value={editFichaData.valor || ''} onChange={(e) => handleValorChange(e.target.value, true)} placeholder="Valor R$" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                          <select value={editFichaData.formaPgto || ''} onChange={(e) => setEditFichaData({ ...editFichaData, formaPgto: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
-                            <option value="">Forma Pgto...</option>
-                            <option value="PIX">PIX</option>
-                            <option value="Dinheiro">Dinheiro</option>
-                            <option value="Débito">Débito</option>
-                            <option value="Crédito (à Vista)">Crédito (à Vista)</option>
-                            <option value="Crédito (parcelado)">Crédito (parcelado)</option>
-                          </select>
-                        </div>
-                        <input type="date" value={editFichaData.dataPgto || ''} onChange={(e) => setEditFichaData({ ...editFichaData, dataPgto: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                        <textarea value={editFichaData.observacoes || ''} onChange={(e) => setEditFichaData({ ...editFichaData, observacoes: e.target.value })} placeholder="Observações" rows={2} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                          <button onClick={() => salvarEdicaoFicha(registo.id)} style={{ flex: 1, backgroundColor: '#16a34a', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.85rem' }}><Save size={16} /> Salvar Alterações</button>
-                          <button onClick={() => setFichaEditandoId(null)} style={{ backgroundColor: '#94a3b8', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.85rem' }}><X size={16} /> Cancelar</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                {registosFiltradosEOrdenados.map((registo) => {
+                  const badgeComp = getBadgeComplexidade(registo.complexidade || 'Média');
+                  return (
+                    <div key={registo.id} style={{ backgroundColor: '#ffffff', borderRadius: '16px', padding: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', textAlign: 'left' }}>
+                      {fichaEditandoId === registo.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#0284c7', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>Editar Ficha Médica</div>
+                          
                           <div>
-                            <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a' }}>{registo.paciente}</span>
-                            <span style={{ marginLeft: '6px', fontSize: '0.75rem', backgroundColor: registo.especie === 'Gato' ? '#fbcfe8' : '#e0f2fe', color: registo.especie === 'Gato' ? '#9d174d' : '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>{registo.especie || 'Cão'}</span>
-                            {registo.peso && <span style={{ marginLeft: '4px', fontSize: '0.75rem', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '12px', fontWeight: '600' }}>{registo.peso} kg</span>}
+                            <label style={{ fontSize: '0.75rem', fontWeight: '600', color: '#0284c7', display: 'block', marginBottom: '2px' }}>Data Proc.</label>
+                            <input type="date" value={editFichaData.dataProc || ''} onChange={(e) => setEditFichaData({ ...editFichaData, dataProc: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {registo.dataProc && (
-                              <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#f8fafc', padding: '4px 8px', borderRadius: '6px', marginRight: '4px' }}>
-                                <Calendar size={12} /> {registo.dataProc}
-                              </span>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 0.8fr', gap: '6px' }}>
+                            <input type="text" value={editFichaData.paciente || ''} onChange={(e) => setEditFichaData({ ...editFichaData, paciente: e.target.value })} placeholder="Paciente" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+                            <select value={editFichaData.especie || 'Cão'} onChange={(e) => setEditFichaData({ ...editFichaData, especie: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
+                              <option value="Cão">Cão</option>
+                              <option value="Gato">Gato</option>
+                            </select>
+                            <input type="text" value={editFichaData.peso || ''} onChange={(e) => handlePesoChange(e.target.value, true)} placeholder="Peso kg" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '6px' }}>
+                            <input type="text" value={editFichaData.procedimento || ''} onChange={(e) => setEditFichaData({ ...editFichaData, procedimento: e.target.value })} placeholder="Procedimento" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+                            <select value={editFichaData.complexidade || 'Média'} onChange={(e) => setEditFichaData({ ...editFichaData, complexidade: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
+                              <option value="Baixa">🟢 Baixa</option>
+                              <option value="Média">🔵 Média</option>
+                              <option value="Alta">🟠 Alta</option>
+                              <option value="Crítica / Especial">🔴 Crítica/Esp.</option>
+                            </select>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <input type="text" value={editFichaData.tutor || ''} onChange={(e) => setEditFichaData({ ...editFichaData, tutor: e.target.value })} placeholder="Tutor" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+                            <select value={editFichaData.cirurgiao || ''} onChange={(e) => setEditFichaData({ ...editFichaData, cirurgiao: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
+                              <option value="">Cirurgião...</option>
+                              {cirurgioes.map((c) => (<option key={c.id} value={c.nome}>{c.nome}</option>))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <select value={editFichaData.local || ''} onChange={(e) => setEditFichaData({ ...editFichaData, local: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
+                              <option value="">Clínica...</option>
+                              {clinicas.map((c) => (<option key={c.id} value={c.nome}>{c.nome}</option>))}
+                            </select>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <input type="text" value={editFichaData.valor || ''} onChange={(e) => handleValorChange(e.target.value, true)} placeholder="Valor R$" style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+                            <select value={editFichaData.formaPgto || ''} onChange={(e) => setEditFichaData({ ...editFichaData, formaPgto: e.target.value })} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', backgroundColor: '#fff' }}>
+                              <option value="">Forma Pgto...</option>
+                              <option value="PIX">PIX</option>
+                              <option value="Dinheiro">Dinheiro</option>
+                              <option value="Débito">Débito</option>
+                              <option value="Crédito (à Vista)">Crédito (à Vista)</option>
+                              <option value="Crédito (parcelado)">Crédito (parcelado)</option>
+                            </select>
+                          </div>
+
+                          <input type="date" value={editFichaData.dataPgto || ''} onChange={(e) => setEditFichaData({ ...editFichaData, dataPgto: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+                          <textarea value={editFichaData.observacoes || ''} onChange={(e) => setEditFichaData({ ...editFichaData, observacoes: e.target.value })} placeholder="Observações" rows={2} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }} />
+
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                            <button onClick={() => salvarEdicaoFicha(registo.id)} style={{ flex: 1, backgroundColor: '#16a34a', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.85rem' }}><Save size={16} /> Salvar Alterações</button>
+                            <button onClick={() => setFichaEditandoId(null)} style={{ backgroundColor: '#94a3b8', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.85rem' }}><X size={16} /> Cancelar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <div>
+                              <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a' }}>{registo.paciente}</span>
+                              <span style={{ marginLeft: '6px', fontSize: '0.75rem', backgroundColor: registo.especie === 'Gato' ? '#fbcfe8' : '#e0f2fe', color: registo.especie === 'Gato' ? '#9d174d' : '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>{registo.especie || 'Cão'}</span>
+                              {registo.peso && <span style={{ marginLeft: '4px', fontSize: '0.75rem', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '12px', fontWeight: '600' }}>{registo.peso} kg</span>}
+                            </div>
+                            
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {registo.dataProc && (
+                                <span style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#f0f9ff', padding: '4px 8px', borderRadius: '6px', marginRight: '4px', border: '1px solid #bae6fd' }}>
+                                  <Calendar size={12} /> {registo.dataProc}
+                                </span>
+                              )}
+                              <button onClick={() => iniciarEdicaoFicha(registo)} title="Editar Ficha" style={{ backgroundColor: '#e0f2fe', color: '#0284c7', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}><Pencil size={15} /></button>
+                              <button onClick={() => excluirFicha(registo.id, registo.paciente)} title="Excluir Ficha" style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}><Trash2 size={15} /></button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155' }}>{registo.procedimento}</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: '700', backgroundColor: badgeComp.bg, color: badgeComp.color, border: `1px solid ${badgeComp.border}`, padding: '2px 6px', borderRadius: '6px' }}>
+                              {registo.complexidade || 'Média'}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.8rem', color: '#64748b', marginBottom: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+                            {registo.tutor && <div><strong>Tutor:</strong> {registo.tutor}</div>}
+                            {registo.cirurgiao && <div><strong>Cirurgião:</strong> {registo.cirurgiao}</div>}
+                            {registo.local && <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><MapPin size={12} /> {registo.local}</div>}
+                          </div>
+
+                          <div style={{ backgroundColor: registo.dataPgto ? '#f0fdf4' : '#fffbeb', padding: '8px 12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: registo.dataPgto ? '#166534' : '#92400e', fontWeight: '600' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <DollarSign size={15} /> R$ {registo.valor || '0,00'} {registo.formaPgto && `(${registo.formaPgto})`}
+                            </span>
+
+                            {registo.dataPgto ? (
+                              <span style={{ fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '3px' }}><CheckCircle2 size={13} /> Pago em {registo.dataPgto}</span>
+                            ) : (
+                              <button onClick={() => quitarProcedimento(registo.id, registo.paciente)} style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <CheckCircle size={13} /> Quitar
+                              </button>
                             )}
-                            <button onClick={() => iniciarEdicaoFicha(registo)} title="Editar Ficha" style={{ backgroundColor: '#e0f2fe', color: '#0284c7', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}><Pencil size={15} /></button>
-                            <button onClick={() => excluirFicha(registo.id, registo.paciente)} title="Excluir Ficha" style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex' }}><Trash2 size={15} /></button>
                           </div>
-                        </div>
 
-                        <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#334155', marginBottom: '8px' }}>{registo.procedimento}</div>
-
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.8rem', color: '#64748b', marginBottom: '10px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
-                          {registo.tutor && <div><strong>Tutor:</strong> {registo.tutor}</div>}
-                          {registo.cirurgiao && <div><strong>Cirurgião:</strong> {registo.cirurgiao}</div>}
-                          {registo.local && <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><MapPin size={12} /> {registo.local}</div>}
-                        </div>
-
-                        <div style={{ backgroundColor: registo.dataPgto ? '#f0fdf4' : '#fffbeb', padding: '8px 12px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: registo.dataPgto ? '#166534' : '#92400e', fontWeight: '600' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <DollarSign size={15} /> R$ {registo.valor || '0,00'} {registo.formaPgto && `(${registo.formaPgto})`}
-                          </span>
-
-                          {registo.dataPgto ? (
-                            <span style={{ fontSize: '0.75rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '3px' }}><CheckCircle2 size={13} /> Pago em {registo.dataPgto}</span>
-                          ) : (
-                            <button onClick={() => quitarProcedimento(registo.id, registo.paciente)} style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <CheckCircle size={13} /> Quitar
-                            </button>
+                          {registo.observacoes && (
+                            <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#475569', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', fontStyle: 'italic', borderLeft: '3px solid #cbd5e1' }}>
+                              {registo.observacoes}
+                            </div>
                           )}
-                        </div>
-
-                        {registo.observacoes && (
-                          <div style={{ marginTop: '8px', fontSize: '0.8rem', color: '#475569', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', fontStyle: 'italic', borderLeft: '3px solid #cbd5e1' }}>
-                            {registo.observacoes}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                ))}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
@@ -732,6 +802,7 @@ export default function App() {
                       <th style={{ padding: '10px 12px' }}>Data</th>
                       <th style={{ padding: '10px 12px' }}>Paciente</th>
                       <th style={{ padding: '10px 12px' }}>Procedimento</th>
+                      <th style={{ padding: '10px 12px' }}>Complexidade</th>
                       <th style={{ padding: '10px 12px' }}>Clínica</th>
                       <th style={{ padding: '10px 12px' }}>Valor</th>
                       <th style={{ padding: '10px 12px' }}>Status</th>
@@ -739,35 +810,43 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {registosFiltradosEOrdenados.map((registo) => (
-                      <tr key={registo.id} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
-                        <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>{registo.dataProc || '---'}</td>
-                        <td style={{ padding: '10px 12px', fontWeight: '700' }}>
-                          {registo.paciente}
-                          <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: '500', color: registo.especie === 'Gato' ? '#be185d' : '#0284c7' }}>
-                            {registo.especie || 'Cão'} {registo.peso ? `(${registo.peso}kg)` : ''}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 12px' }}>{registo.procedimento}</td>
-                        <td style={{ padding: '10px 12px' }}>{registo.local || '---'}</td>
-                        <td style={{ padding: '10px 12px', fontWeight: '600' }}>R$ {registo.valor || '0,00'}</td>
-                        <td style={{ padding: '10px 12px' }}>
-                          {registo.dataPgto ? (
-                            <span style={{ color: '#15803d', fontWeight: '600', fontSize: '0.75rem', backgroundColor: '#f0fdf4', padding: '2px 6px', borderRadius: '4px' }}>Pago</span>
-                          ) : (
-                            <button onClick={() => quitarProcedimento(registo.id, registo.paciente)} style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <Clock size={12} /> Quitar
-                            </button>
-                          )}
-                        </td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <div style={{ display: 'inline-flex', gap: '4px' }}>
-                            <button onClick={() => { setModoVisualizacao('cards'); iniciarEdicaoFicha(registo); }} title="Editar" style={{ backgroundColor: '#e0f2fe', color: '#0284c7', border: 'none', padding: '5px', borderRadius: '5px', cursor: 'pointer' }}><Pencil size={14} /></button>
-                            <button onClick={() => excluirFicha(registo.id, registo.paciente)} title="Excluir" style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '5px', borderRadius: '5px', cursor: 'pointer' }}><Trash2 size={14} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {registosFiltradosEOrdenados.map((registo) => {
+                      const badgeComp = getBadgeComplexidade(registo.complexidade || 'Média');
+                      return (
+                        <tr key={registo.id} style={{ borderBottom: '1px solid #f1f5f9', color: '#334155' }}>
+                          <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', fontWeight: '600' }}>{registo.dataProc || '---'}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: '700' }}>
+                            {registo.paciente}
+                            <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: '500', color: registo.especie === 'Gato' ? '#be185d' : '#0284c7' }}>
+                              {registo.especie || 'Cão'} {registo.peso ? `(${registo.peso}kg)` : ''}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>{registo.procedimento}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: '700', backgroundColor: badgeComp.bg, color: badgeComp.color, border: `1px solid ${badgeComp.border}`, padding: '2px 6px', borderRadius: '6px' }}>
+                              {registo.complexidade || 'Média'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>{registo.local || '---'}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: '600' }}>R$ {registo.valor || '0,00'}</td>
+                          <td style={{ padding: '10px 12px' }}>
+                            {registo.dataPgto ? (
+                              <span style={{ color: '#15803d', fontWeight: '600', fontSize: '0.75rem', backgroundColor: '#f0fdf4', padding: '2px 6px', borderRadius: '4px' }}>Pago</span>
+                            ) : (
+                              <button onClick={() => quitarProcedimento(registo.id, registo.paciente)} style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <Clock size={12} /> Quitar
+                              </button>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'inline-flex', gap: '4px' }}>
+                              <button onClick={() => { setModoVisualizacao('cards'); iniciarEdicaoFicha(registo); }} title="Editar" style={{ backgroundColor: '#e0f2fe', color: '#0284c7', border: 'none', padding: '5px', borderRadius: '5px', cursor: 'pointer' }}><Pencil size={14} /></button>
+                              <button onClick={() => excluirFicha(registo.id, registo.paciente)} title="Excluir" style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '5px', borderRadius: '5px', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -875,11 +954,11 @@ export default function App() {
           </div>
         )}
 
-        {/* DASHBOARD COM GRÁFICO EXPANDIDO */}
+        {/* Dashboard */}
         {abaAtiva === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
             
-            {/* Barra de Filtro de Período */}
+            {/* Filtro de Período */}
             <div style={{ backgroundColor: '#ffffff', padding: '14px 16px', borderRadius: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -921,7 +1000,7 @@ export default function App() {
               )}
             </div>
 
-            {/* CARDS DE RESUMO PRIMÁRIO */}
+            {/* Resumos */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
               <div style={{ backgroundColor: '#ffffff', padding: '18px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px -2px rgba(2, 132, 199, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', right: '-10px', top: '-10px', opacity: 0.05 }}>
@@ -957,7 +1036,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* FATURAMENTO POR CLÍNICA (AMPLIADO IGUAL À IMAGEM) */}
+            {/* Gráfico Rosca */}
             <div style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ backgroundColor: '#e0f2fe', padding: '8px', borderRadius: '10px', display: 'flex', color: '#0284c7' }}>
@@ -971,7 +1050,6 @@ export default function App() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '24px', alignItems: 'center' }}>
                   
-                  {/* Rosca Interativa SVG Aumentada (280px) */}
                   <div style={{ position: 'relative', width: '280px', height: '280px', margin: '0 auto' }}>
                     <svg width="280" height="280" viewBox="0 0 280 280" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
                       {metricasDashboard.fatiasSVG.map((fatia) => (
@@ -992,7 +1070,6 @@ export default function App() {
                       ))}
                     </svg>
 
-                    {/* Miolo Expandido (170px) */}
                     <div style={{ 
                       position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
                       width: '170px', height: '170px', backgroundColor: '#ffffff', borderRadius: '50%',
@@ -1020,7 +1097,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Tabela Resumo com Estilo Limpo */}
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
                       <thead>
@@ -1063,7 +1139,7 @@ export default function App() {
               )}
             </div>
 
-            {/* PENDÊNCIAS FINANCEIRAS */}
+            {/* Pendências */}
             <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1113,7 +1189,7 @@ export default function App() {
               )}
             </div>
 
-            {/* RESUMO POR ESPÉCIE */}
+            {/* Espécie */}
             <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0f172a', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ backgroundColor: '#e0f2fe', padding: '6px', borderRadius: '8px', display: 'flex', color: '#0284c7' }}>
