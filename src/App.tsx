@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { 
   Stethoscope, User, Plus, Activity, Loader2, MapPin, 
   DollarSign, Calendar, FileText, CheckCircle2, Clock, Building2, 
@@ -155,7 +155,7 @@ export default function App() {
     }
   };
 
-  const guardarRegisto = async (e: React.FormEvent) => {
+  const guardarRegisto = async (e: FormEvent) => {
     e.preventDefault();
     setSalvando(true);
     try {
@@ -313,7 +313,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const guardarClinica = async (e: React.FormEvent) => {
+  const guardarClinica = async (e: FormEvent) => {
     e.preventDefault();
     if (!novaClinicaNome.trim()) return;
     setSalvandoClinica(true);
@@ -339,7 +339,7 @@ export default function App() {
     } catch (error: any) { alert("Erro ao atualizar clínica: " + error.message); }
   };
 
-  const guardarCirurgiao = async (e: React.FormEvent) => {
+  const guardarCirurgiao = async (e: FormEvent) => {
     e.preventDefault();
     if (!novoCirurgiaoNome.trim()) return;
     setSalvandoCirurgiao(true);
@@ -562,7 +562,7 @@ export default function App() {
 
       // Nível SEMANA
       if (nivelDrill === 'semana') {
-        const [ano, semana] = chave.split('-W');
+        const [, semana] = chave.split('-W');
 
         const intervalo = getIntervaloSemana(chave);
 
@@ -652,19 +652,6 @@ export default function App() {
     }
   };
 
-
-  const handleDrillUp = () => {
-    if (nivelDrill === 'dia') {
-      setNivelDrill('semana');
-      setFiltroSemanaSelected(null);
-    } else if (nivelDrill === 'semana') {
-      setNivelDrill('mes');
-      setFiltroMesSelected(null);
-    } else if (nivelDrill === 'mes') {
-      setNivelDrill('ano');
-      setFiltroAnoSelected(null);
-    }
-  };
 
   // Métricas do Dashboard
   const metricasDashboard = useMemo(() => {
