@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import { 
   Stethoscope, User, Plus, Activity, Loader2, MapPin, 
   DollarSign, Calendar, FileText, CheckCircle2, Clock, Building2, 
@@ -80,11 +80,10 @@ export default function App() {
   const [fichaEditandoId, setFichaEditandoId] = useState<string | null>(null);
   const [editFichaData, setEditFichaData] = useState<any>({});
 
-  // Nível do Drill-down do Gráfico de Colunas: 'ano' | 'mes' | 'semana' | 'dia'
-  const [nivelDrill, setNivelDrill] = useState<'ano' | 'mes' | 'semana' | 'dia'>('ano');
-  const [filtroAnoSelected, setFiltroAnoSelected] = useState<string | null>(null);
-  const [filtroMesSelected, setFiltroMesSelected] = useState<string | null>(null); // Ex: '2026-03'
-  const [filtroSemanaSelected, setFiltroSemanaSelected] = useState<string | null>(null); // Ex: '2026-W10'
+  // Gráfico de faturamento: nível (granularidade) + escopo (período em que se entrou clicando numa coluna)
+  const [nivelDrill, setNivelDrill] = useState<'ano' | 'mes' | 'semana' | 'dia'>('mes');
+  const [escopoGrafico, setEscopoGrafico] = useState<{ tipo: 'ano' | 'mes' | 'semana'; chave: string } | null>(null);
+  const scrollGraficoRef = useRef<HTMLDivElement>(null);
 
   // Filtros de Período Geral no Dashboard
   const [tipoPeriodo, setTipoPeriodo] = useState<'mes' | 'ano' | 'personalizado' | 'todos'>('todos');
@@ -455,131 +454,75 @@ export default function App() {
   };
 
   // Lógica principal do gráfico
+  const ALTURA_GRAFICO = 220;
+
   const dadosGraficoDrill = useMemo(() => {
 
     // Cores das clínicas
     const mapaCoresClinicas: { [nome: string]: string } = {};
-
     clinicas.forEach((clinica, index) => {
-      mapaCoresClinicas[clinica.nome] =
-        PALETA_CORES[index % PALETA_CORES.length];
+      mapaCoresClinicas[clinica.nome] = PALETA_CORES[index % PALETA_CORES.length];
     });
 
-    // Filtra os registros conforme o nível de navegação
+    // Aplica apenas o escopo (período clicado). O NÍVEL mostra TODOS os períodos daquele nível.
     const registrosFiltrados = registos.filter(registro => {
-
       if (!registro.dataProc) return false;
-
-      if (nivelDrill === 'ano') {
-        return true;
-      }
-
-      if (nivelDrill === 'mes') {
-        return getAnoFromData(registro.dataProc) === filtroAnoSelected;
-      }
-
-      if (nivelDrill === 'semana') {
-        return getMesFromData(registro.dataProc) === filtroMesSelected;
-      }
-
-      if (nivelDrill === 'dia') {
-        return getSemanaFromData(registro.dataProc) === filtroSemanaSelected;
-      }
-
-      return true;
+      if (!escopoGrafico) return true;
+      if (escopoGrafico.tipo === 'ano') return getAnoFromData(registro.dataProc) === escopoGrafico.chave;
+      if (escopoGrafico.tipo === 'mes') return getMesFromData(registro.dataProc) === escopoGrafico.chave;
+      return getSemanaFromData(registro.dataProc) === escopoGrafico.chave;
     });
 
-    // Agrupamento dos valores
-    const grupos: {
-      [chavePeriodo: string]: { [local: string]: number }
-    } = {};
-
-    const totaisPorGrupo: {
-      [chavePeriodo: string]: number
-    } = {};
+    const grupos: { [chavePeriodo: string]: { [local: string]: number } } = {};
+    const totaisPorGrupo: { [chavePeriodo: string]: number } = {};
+    const clinicasPresentes = new Set<string>();
+    let totalPeriodo = 0;
 
     registrosFiltrados.forEach(registro => {
-
       const valorNum = registro.valor
-        ? parseFloat(registro.valor.replace('.', '').replace(',', '.'))
+        ? parseFloat(String(registro.valor).replace(/\./g, '').replace(',', '.')) || 0
         : 0;
 
       const clinicaNome = registro.local || 'Não informada';
 
       let chave = '';
-
-      if (nivelDrill === 'ano') {
-        chave = getAnoFromData(registro.dataProc);
-      } else if (nivelDrill === 'mes') {
-        chave = getMesFromData(registro.dataProc);
-      } else if (nivelDrill === 'semana') {
-        chave = getSemanaFromData(registro.dataProc);
-      } else if (nivelDrill === 'dia') {
-        chave = registro.dataProc;
-      }
+      if (nivelDrill === 'ano') chave = getAnoFromData(registro.dataProc);
+      else if (nivelDrill === 'mes') chave = getMesFromData(registro.dataProc);
+      else if (nivelDrill === 'semana') chave = getSemanaFromData(registro.dataProc);
+      else chave = registro.dataProc;
 
       if (!chave) return;
 
-      if (!grupos[chave]) {
-        grupos[chave] = {};
-      }
-
-      grupos[chave][clinicaNome] =
-        (grupos[chave][clinicaNome] || 0) + valorNum;
-
-      totaisPorGrupo[chave] =
-        (totaisPorGrupo[chave] || 0) + valorNum;
+      if (!grupos[chave]) grupos[chave] = {};
+      grupos[chave][clinicaNome] = (grupos[chave][clinicaNome] || 0) + valorNum;
+      totaisPorGrupo[chave] = (totaisPorGrupo[chave] || 0) + valorNum;
+      clinicasPresentes.add(clinicaNome);
+      totalPeriodo += valorNum;
     });
 
-    // Ordenação cronológica
     const chavesOrdenadas = Object.keys(grupos).sort();
+    const maiorValorTotal = Math.max(...Object.values(totaisPorGrupo), 1);
 
-    const maiorValorTotal = Math.max(
-      ...Object.values(totaisPorGrupo),
-      1
-    );
+    const formatarRotulo = (chave: string, nivel: 'ano' | 'mes' | 'semana' | 'dia' = nivelDrill): string => {
+      const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-    // Formatação dos rótulos do eixo X
-    const formatarRotulo = (chave: string): string => {
+      if (nivel === 'ano') return chave;
 
-      const meses = [
-        'Janeiro', 'Fevereiro', 'Março', 'Abril',
-        'Maio', 'Junho', 'Julho', 'Agosto',
-        'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-      ];
-
-      // Nível ANO
-      if (nivelDrill === 'ano') {
-        return chave;
-      }
-
-      // Nível MÊS
-      if (nivelDrill === 'mes') {
+      if (nivel === 'mes') {
         const [ano, mes] = chave.split('-');
-
         return `${meses[Number(mes) - 1]}/${ano}`;
       }
 
-      // Nível SEMANA
-      if (nivelDrill === 'semana') {
+      if (nivel === 'semana') {
         const [, semana] = chave.split('-W');
-
         const intervalo = getIntervaloSemana(chave);
-
-        const inicio = formatarDataCompleta(intervalo.segunda);
-        const fim = formatarDataCompleta(intervalo.domingo);
-
-        return `Semana ${semana}\n${inicio} a ${fim}`;
+        const inicio = formatarDataCompleta(intervalo.segunda).slice(0, 5);
+        const fim = formatarDataCompleta(intervalo.domingo).slice(0, 5);
+        return `Sem ${semana}\n${inicio} a ${fim}`;
       }
 
-      // Nível DIA
-      if (nivelDrill === 'dia') {
-        const [ano, mes, dia] = chave.split('-');
-
-        return `${dia}/${mes}/${ano}`;
-      }
-
-      return chave;
+      const [ano, mes, dia] = chave.split('-');
+      return `${dia}/${mes}\n${ano}`;
     };
 
     return {
@@ -587,71 +530,36 @@ export default function App() {
       grupos,
       totaisPorGrupo,
       maiorValorTotal,
+      totalPeriodo,
+      clinicasPresentes: Array.from(clinicasPresentes),
       formatarRotulo,
       mapaCoresClinicas
     };
 
-  }, [
-    registos,
-    clinicas,
-    nivelDrill,
-    filtroAnoSelected,
-    filtroMesSelected,
-    filtroSemanaSelected
-  ]);
+  }, [registos, clinicas, nivelDrill, escopoGrafico]);
 
-  // ==========================================
-  // NAVEGAÇÃO DRILL-DOWN
-  // ==========================================
+  // Sempre mostra o período mais recente (rola o gráfico para a direita)
+  useEffect(() => {
+    const el = scrollGraficoRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [abaAtiva, nivelDrill, escopoGrafico, dadosGraficoDrill.chavesOrdenadas.length]);
 
+  // Clique numa coluna: filtra por aquele período e abre o próximo nível
   const handleBarClick = (chave: string) => {
-
-    if (nivelDrill === 'ano') {
-
-      setFiltroAnoSelected(chave);
-      setFiltroMesSelected(null);
-      setFiltroSemanaSelected(null);
-
-      setNivelDrill('mes');
-
-    } else if (nivelDrill === 'mes') {
-
-      setFiltroMesSelected(chave);
-      setFiltroSemanaSelected(null);
-
-      setNivelDrill('semana');
-
-    } else if (nivelDrill === 'semana') {
-
-      setFiltroSemanaSelected(chave);
-
-      setNivelDrill('dia');
-    }
+    if (nivelDrill === 'dia') return;
+    setEscopoGrafico({ tipo: nivelDrill, chave });
+    setNivelDrill(nivelDrill === 'ano' ? 'mes' : nivelDrill === 'mes' ? 'semana' : 'dia');
   };
 
-  // ==========================================
-  // NAVEGAÇÃO DRILL-UP
-  // ==========================================
-
+  // Subir nível: desfaz o último clique; sem filtro, apenas sobe um nível
   const handleDrillUp = () => {
-
-    if (nivelDrill === 'dia') {
-
-      setNivelDrill('semana');
-      setFiltroSemanaSelected(null);
-
-    } else if (nivelDrill === 'semana') {
-
-      setNivelDrill('mes');
-      setFiltroMesSelected(null);
-
-    } else if (nivelDrill === 'mes') {
-
-      setNivelDrill('ano');
-      setFiltroAnoSelected(null);
-    }
+    if (escopoGrafico) {
+      setNivelDrill(escopoGrafico.tipo);
+      setEscopoGrafico(null);
+    } else if (nivelDrill === 'dia') setNivelDrill('semana');
+    else if (nivelDrill === 'semana') setNivelDrill('mes');
+    else if (nivelDrill === 'mes') setNivelDrill('ano');
   };
-
 
   // Métricas do Dashboard
   const metricasDashboard = useMemo(() => {
@@ -1261,346 +1169,123 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
             
             
-  {/* ==========================================
-      GRÁFICO DE FATURAMENTO POR PERÍODO
-      ========================================== */}
+  {/* GRÁFICO DE FATURAMENTO POR PERÍODO */}
+            <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
 
-  <div
-    style={{
-      backgroundColor: '#ffffff',
-      padding: '20px',
-      borderRadius: '20px',
-      border: '1px solid #e2e8f0',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
-    }}
-  >
-
-    {/* CABEÇALHO */}
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '10px',
-        marginBottom: '16px'
-      }}
-    >
-
-      <div>
-
-        <div
-          style={{
-            fontSize: '1rem',
-            fontWeight: '800',
-            color: '#0f172a',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          <BarChart3 size={20} color="#0284c7" />
-          Faturamento por Período
-        </div>
-
-        {/* CAMINHO DE NAVEGAÇÃO */}
-        <div
-          style={{
-            fontSize: '0.75rem',
-            color: '#64748b',
-            fontWeight: '600',
-            marginTop: '5px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: '4px'
-          }}
-        >
-
-          Visualização por:
-
-          <span
-            style={{
-              color: '#0284c7',
-              textTransform: 'uppercase',
-              fontWeight: '800'
-            }}
-          >
-            {nivelDrill}
-          </span>
-
-          {filtroAnoSelected && (
-            <span> &gt; Ano {filtroAnoSelected}</span>
-          )}
-
-          {filtroMesSelected && (
-            <span> &gt; Mês {dadosGraficoDrill.formatarRotulo(filtroMesSelected)}</span>
-          )}
-
-          {filtroSemanaSelected && (
-            <span> &gt; {dadosGraficoDrill.formatarRotulo(filtroSemanaSelected)}</span>
-          )}
-
-        </div>
-      </div>
-
-      {/* BOTÃO DRILL-UP */}
-      {nivelDrill !== 'ano' && (
-        <button
-          onClick={handleDrillUp}
-          style={{
-            backgroundColor: '#e0f2fe',
-            color: '#0284c7',
-            border: 'none',
-            padding: '7px 12px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontWeight: '700',
-            fontSize: '0.8rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px'
-          }}
-        >
-          <ChevronLeft size={16} />
-          Subir Nível
-        </button>
-      )}
-
-    </div>
-
-    {/* CONTEÚDO DO GRÁFICO */}
-    {dadosGraficoDrill.chavesOrdenadas.length === 0 ? (
-
-      <div
-        style={{
-          textAlign: 'center',
-          padding: '30px',
-          color: '#94a3b8',
-          fontSize: '0.85rem'
-        }}
-      >
-        Nenhum dado encontrado para o período selecionado.
-      </div>
-
-    ) : (
-
-      <div>
-
-        {/* ÁREA DAS COLUNAS */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'stretch',
-            gap: '12px',
-            minHeight: '250px',
-            padding: '20px 12px 12px',
-            backgroundColor: '#f8fafc',
-            borderRadius: '12px',
-            overflowX: 'auto',
-            overflowY: 'hidden',
-            border: '1px solid #f1f5f9'
-          }}
-        >
-
-          {dadosGraficoDrill.chavesOrdenadas.map(chave => {
-
-            const totalColuna =
-              dadosGraficoDrill.totaisPorGrupo[chave] || 0;
-
-            const locaisDoGrupo =
-              dadosGraficoDrill.grupos[chave] || {};
-
-            const alturaPercentual =
-              (totalColuna / dadosGraficoDrill.maiorValorTotal) * 100;
-
-            return (
-
-              <div
-                key={chave}
-                onClick={() => handleBarClick(chave)}
-                style={{
-                  flex: '0 0 90px',
-                  minWidth: '90px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  cursor: nivelDrill === 'dia' ? 'default' : 'pointer'
-                }}
-                title={`Período: ${chave}\nTotal: R$ ${totalColuna.toFixed(2)}`}
-              >
-
-                {/* VALOR TOTAL */}
-                <span
-                  style={{
-                    fontSize: '0.65rem',
-                    fontWeight: '800',
-                    color: '#475569',
-                    marginBottom: '5px',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  R$
-                  {totalColuna >= 1000
-                    ? `${(totalColuna / 1000).toFixed(1)}k`
-                    : totalColuna.toFixed(0)}
-                </span>
-
-                {/* COLUNA EMPILHADA */}
-                <div
-                  style={{
-                    width: '100%',
-                    maxWidth: '36px',
-                    height: `${Math.max(alturaPercentual, 4)}%`,
-                    minHeight: '4px',
-                    borderRadius: '6px 6px 0 0',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column-reverse',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-
-                  {Object.entries(locaisDoGrupo).map(
-                    ([nomeLocal, valorLocal]) => {
-
-                      const pctSegmento =
-                        totalColuna > 0
-                          ? (valorLocal / totalColuna) * 100
-                          : 0;
-
-                      const cor =
-                        dadosGraficoDrill.mapaCoresClinicas[nomeLocal] ||
-                        '#94a3b8';
-
-                      return (
-
-                        <div
-                          key={nomeLocal}
-                          style={{
-                            height: `${pctSegmento}%`,
-                            backgroundColor: cor,
-                            width: '100%'
-                          }}
-                          title={`${nomeLocal}: R$ ${valorLocal.toFixed(2)}`}
-                        />
-
-                      );
-                    }
-                  )}
-
+              {/* Cabeçalho */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+                <div>
+                  <div style={{ fontSize: '1rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BarChart3 size={20} color="#0284c7" /> Faturamento por Período
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '600', marginTop: '4px' }}>
+                    Total exibido: <strong style={{ color: '#0f172a' }}>R$ {dadosGraficoDrill.totalPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                  </div>
                 </div>
 
-                {/* RÓTULO DO EIXO X */}
-                <div
-                  style={{
-                    fontSize: '0.68rem',
-                    fontWeight: '700',
-                    color: '#0f172a',
-                    marginTop: '9px',
-                    whiteSpace: 'pre-line',
-                    textAlign: 'center',
-                    lineHeight: '1.4',
-                    minHeight: '42px',
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'center',
-                    overflowWrap: 'normal'
-                  }}
-                >
-                  {dadosGraficoDrill.formatarRotulo(chave)}
-                </div>
-
+                {(escopoGrafico || nivelDrill !== 'ano') && (
+                  <button onClick={handleDrillUp} style={{ backgroundColor: '#e0f2fe', color: '#0284c7', border: 'none', padding: '7px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <ChevronLeft size={16} /> Subir Nível
+                  </button>
+                )}
               </div>
 
-            );
-          })}
+              {/* Seletor de nível: mostra TODOS os períodos do nível escolhido */}
+              <div style={{ display: 'flex', gap: '4px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '10px', marginBottom: '10px' }}>
+                {(['ano', 'mes', 'semana', 'dia'] as const).map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setNivelDrill(n)}
+                    style={{ flex: 1, padding: '7px 4px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700', backgroundColor: nivelDrill === n ? '#ffffff' : 'transparent', color: nivelDrill === n ? '#0284c7' : '#64748b', boxShadow: nivelDrill === n ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
+                  >
+                    {({ ano: 'Ano', mes: 'Mês', semana: 'Semana', dia: 'Dia' } as const)[n]}
+                  </button>
+                ))}
+              </div>
 
-        </div>
+              {/* Filtro ativo */}
+              <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600', marginBottom: '12px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                {escopoGrafico ? (
+                  <>
+                    Filtrado em
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '3px 4px 3px 10px', borderRadius: '12px', fontWeight: '800' }}>
+                      {dadosGraficoDrill.formatarRotulo(escopoGrafico.chave, escopoGrafico.tipo).replace('\n', ' ')}
+                      <button onClick={() => setEscopoGrafico(null)} title="Remover filtro" style={{ border: 'none', backgroundColor: '#bae6fd', color: '#0369a1', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                        <X size={12} />
+                      </button>
+                    </span>
+                  </>
+                ) : (
+                  <>Mostrando todo o período</>
+                )}
+                {nivelDrill !== 'dia' && <span style={{ color: '#94a3b8' }}>· clique numa coluna para detalhar</span>}
+              </div>
 
-        {/* LEGENDA DAS CLÍNICAS */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '10px',
-            marginTop: '14px',
-            justifyContent: 'center'
-          }}
-        >
+              {dadosGraficoDrill.chavesOrdenadas.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                  Nenhum dado encontrado para o período selecionado.
+                </div>
+              ) : (
+                <div>
+                  {/* Área das colunas */}
+                  <div
+                    ref={scrollGraficoRef}
+                    style={{ overflowX: 'auto', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9', padding: '24px 12px 12px' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', width: 'max-content', minWidth: '100%' }}>
+                      {dadosGraficoDrill.chavesOrdenadas.map(chave => {
+                        const totalColuna = dadosGraficoDrill.totaisPorGrupo[chave] || 0;
+                        const locaisDoGrupo = dadosGraficoDrill.grupos[chave] || {};
+                        const alturaPx = totalColuna > 0
+                          ? Math.max((totalColuna / dadosGraficoDrill.maiorValorTotal) * ALTURA_GRAFICO, 4)
+                          : 0;
+                        const clicavel = nivelDrill !== 'dia';
 
-          {clinicas.map(c => (
+                        return (
+                          <div
+                            key={chave}
+                            onClick={() => handleBarClick(chave)}
+                            title={`${dadosGraficoDrill.formatarRotulo(chave).replace('\n', ' ')}\nTotal: R$ ${totalColuna.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                            style={{ width: nivelDrill === 'dia' ? '54px' : '74px', flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', cursor: clicavel ? 'pointer' : 'default' }}
+                          >
+                            {/* Valor total */}
+                            <span style={{ fontSize: '0.65rem', fontWeight: '800', color: '#475569', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                              R$ {totalColuna >= 1000 ? `${(totalColuna / 1000).toFixed(1)}k` : totalColuna.toFixed(0)}
+                            </span>
 
-            <div
-              key={c.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                color: '#475569'
-              }}
-            >
+                            {/* Coluna empilhada por clínica (altura em px) */}
+                            <div style={{ width: '100%', maxWidth: '38px', height: `${alturaPx}px`, borderRadius: '6px 6px 0 0', overflow: 'hidden', display: 'flex', flexDirection: 'column-reverse', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                              {Object.entries(locaisDoGrupo).map(([nomeLocal, valorLocal]) => (
+                                <div
+                                  key={nomeLocal}
+                                  title={`${nomeLocal}: R$ ${valorLocal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                  style={{ height: `${totalColuna > 0 ? (valorLocal / totalColuna) * 100 : 0}%`, backgroundColor: dadosGraficoDrill.mapaCoresClinicas[nomeLocal] || '#94a3b8', width: '100%' }}
+                                />
+                              ))}
+                            </div>
 
-              <div
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '3px',
-                  backgroundColor:
-                    dadosGraficoDrill.mapaCoresClinicas[c.nome] ||
-                    '#94a3b8'
-                }}
-              />
+                            {/* Rótulo do eixo X */}
+                            <div style={{ fontSize: '0.66rem', fontWeight: '700', color: '#0f172a', marginTop: '8px', whiteSpace: 'pre-line', textAlign: 'center', lineHeight: '1.35', minHeight: '30px', width: '100%' }}>
+                              {dadosGraficoDrill.formatarRotulo(chave)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              {c.nome}
-
+                  {/* Legenda (apenas clínicas presentes no gráfico) */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '14px', justifyContent: 'center' }}>
+                    {dadosGraficoDrill.clinicasPresentes.map(nome => (
+                      <div key={nome} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: '600', color: '#475569' }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: dadosGraficoDrill.mapaCoresClinicas[nome] || '#94a3b8' }} />
+                        {nome}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-
-          ))}
-
-          {/* CLÍNICA NÃO INFORMADA */}
-          {Object.values(dadosGraficoDrill.grupos).some(
-            grupo => grupo['Não informada'] !== undefined
-          ) && (
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                color: '#475569'
-              }}
-            >
-
-              <div
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '3px',
-                  backgroundColor: '#94a3b8'
-                }}
-              />
-
-              Não informada
-
-            </div>
-
-          )}
-
-        </div>
-
-      </div>
-
-    )}
-
-  </div>
 
             {/* Filtro de Período Geral */}
             <div style={{ backgroundColor: '#ffffff', padding: '14px 16px', borderRadius: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
