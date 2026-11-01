@@ -351,10 +351,14 @@ export default function App() {
   };
 
   const excluirCirurgiao = async (id: string, nome: string) => {
-    if (confirm(`Tem certeza que deseja excluir o cirurgião "${nome}"?`)) {
-      try { await deleteDoc(doc(doc(db, 'cirurgioes', id))); } catch (error: any) { alert("Erro ao excluir cirurgião: " + error.message); }
+  if (confirm(`Tem certeza que deseja excluir o cirurgião "${nome}"?`)) {
+    try {
+      await deleteDoc(doc(db, 'cirurgioes', id));
+    } catch (error: any) {
+      alert("Erro ao excluir cirurgião: " + error.message);
     }
-  };
+  }
+};
 
   const salvarEdicaoCirurgiao = async (id: string) => {
     if (!nomeCirurgiaoEditado.trim()) return;
