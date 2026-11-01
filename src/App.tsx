@@ -333,7 +333,7 @@ export default function App() {
     } catch (error: any) { alert("Erro ao atualizar cirurgião: " + error.message); }
   };
 
-  // Métricas do Dashboard com Design Pinterest
+  // Métricas do Dashboard com Rosca Expandida
   const metricasDashboard = useMemo(() => {
     const fichasFiltradas = registos.filter(r => {
       if (!r.dataProc) return false;
@@ -382,7 +382,7 @@ export default function App() {
 
     const taxaRecebimento = totalGeral > 0 ? (totalPago / totalGeral) * 100 : 0;
 
-    // Arcos SVG da Rosca Interativa
+    // Arcos SVG da Rosca Expandida (Raio 115px no centro 140,140)
     const listaClinicasGrafico = Object.entries(porClinica).sort((a, b) => b[1] - a[1]);
     let anguloAcumulado = 0;
 
@@ -394,7 +394,7 @@ export default function App() {
       const fimAng = anguloAcumulado + angulo;
       anguloAcumulado += angulo;
 
-      const cx = 110, cy = 110, r = 85;
+      const cx = 140, cy = 140, r = 115;
       const radInicio = (inicioAng - 90) * (Math.PI / 180);
       const radFim = (fimAng - 90) * (Math.PI / 180);
 
@@ -434,7 +434,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '16px 12px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '850px', margin: '0 auto' }}>
         
         {/* Header Superior */}
         <header style={{ 
@@ -448,12 +448,12 @@ export default function App() {
             </div>
             <div style={{ textAlign: 'left' }}>
               <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.02em' }}>Ficha Anestésica</h1>
-              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>Painel Médico Veterinarinho</p>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>Painel Médico Veterinário</p>
             </div>
           </div>
         </header>
 
-        {/* Menu de Navegação em Tabs */}
+        {/* Menu de Navegação */}
         <div style={{ display: 'flex', gap: '6px', marginBottom: '18px', backgroundColor: '#e2e8f0', padding: '5px', borderRadius: '14px', flexWrap: 'wrap' }}>
           <button onClick={() => setAbaAtiva('formulario')} style={{ flex: 1, minWidth: '70px', padding: '8px 4px', borderRadius: '10px', border: 'none', backgroundColor: abaAtiva === 'formulario' ? '#ffffff' : 'transparent', color: abaAtiva === 'formulario' ? '#0284c7' : '#64748b', fontWeight: '700', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: abaAtiva === 'formulario' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>
             <Plus size={15} /> Nova
@@ -875,11 +875,11 @@ export default function App() {
           </div>
         )}
 
-        {/* DASHBOARD REFORMULADO (PINTEREST / MODERN DASHBOARD LOOK) */}
+        {/* DASHBOARD COM GRÁFICO EXPANDIDO */}
         {abaAtiva === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
             
-            {/* Barra de Seleção de Período Estilizada */}
+            {/* Barra de Filtro de Período */}
             <div style={{ backgroundColor: '#ffffff', padding: '14px 16px', borderRadius: '18px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -921,15 +921,9 @@ export default function App() {
               )}
             </div>
 
-            {/* SEÇÃO 1: HERO CARDS DE DESTAQUE PRIMÁRIO */}
+            {/* CARDS DE RESUMO PRIMÁRIO */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
-              
-              {/* Card Destaque 1: Faturamento Total */}
-              <div style={{ 
-                backgroundColor: '#ffffff', padding: '18px', borderRadius: '20px', 
-                border: '1px solid #e2e8f0', boxShadow: '0 4px 20px -2px rgba(2, 132, 199, 0.08)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden'
-              }}>
+              <div style={{ backgroundColor: '#ffffff', padding: '18px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px -2px rgba(2, 132, 199, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', right: '-10px', top: '-10px', opacity: 0.05 }}>
                   <TrendingUp size={120} color="#0284c7" />
                 </div>
@@ -946,12 +940,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Card Destaque 2: Taxa de Recebimento (%) */}
-              <div style={{ 
-                backgroundColor: '#ffffff', padding: '18px', borderRadius: '20px', 
-                border: '1px solid #e2e8f0', boxShadow: '0 4px 20px -2px rgba(16, 185, 129, 0.08)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
-              }}>
+              <div style={{ backgroundColor: '#ffffff', padding: '18px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px -2px rgba(16, 185, 129, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
                   <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Taxa de Quitação
@@ -960,49 +949,121 @@ export default function App() {
                     {metricasDashboard.taxaRecebimento.toFixed(1)}%
                   </div>
                 </div>
-                
-                {/* Barra de Progresso Visual */}
                 <div style={{ marginTop: '10px' }}>
                   <div style={{ width: '100%', height: '8px', backgroundColor: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{ width: `${metricasDashboard.taxaRecebimento}%`, height: '100%', backgroundColor: '#10b981', borderRadius: '4px', transition: 'width 0.5s ease-in-out' }} />
                   </div>
                 </div>
               </div>
-
             </div>
 
-            {/* SEÇÃO 2: CARDS DE STATUS DE PAGAMENTO (PAGO VS PENDENTE) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              
-              {/* Total Recebido */}
-              <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '18px', border: '1px solid #bbf7d0', boxShadow: '0 2px 10px rgba(22, 163, 74, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ backgroundColor: '#f0fdf4', padding: '10px', borderRadius: '14px', display: 'flex', color: '#16a34a' }}>
-                  <CheckCircle2 size={24} />
+            {/* FATURAMENTO POR CLÍNICA (AMPLIADO IGUAL À IMAGEM) */}
+            <div style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ backgroundColor: '#e0f2fe', padding: '8px', borderRadius: '10px', display: 'flex', color: '#0284c7' }}>
+                  <Building2 size={20} />
                 </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#166534', display: 'block' }}>Total Recebido</span>
-                  <span style={{ fontSize: '1.15rem', fontWeight: '800', color: '#15803d' }}>
-                    R$ {metricasDashboard.totalPago.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
+                Faturamento por Clínica
               </div>
 
-              {/* Total Pendente */}
-              <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '18px', border: '1px solid #fde68a', boxShadow: '0 2px 10px rgba(180, 83, 9, 0.05)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ backgroundColor: '#fffbeb', padding: '10px', borderRadius: '14px', display: 'flex', color: '#b45309' }}>
-                  <Clock size={24} />
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#92400e', display: 'block' }}>A Receber (Pendente)</span>
-                  <span style={{ fontSize: '1.15rem', fontWeight: '800', color: '#b45309' }}>
-                    R$ {metricasDashboard.totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
+              {metricasDashboard.fatiasSVG.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0, textAlign: 'center', padding: '20px' }}>Nenhum procedimento registrado neste período.</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: '24px', alignItems: 'center' }}>
+                  
+                  {/* Rosca Interativa SVG Aumentada (280px) */}
+                  <div style={{ position: 'relative', width: '280px', height: '280px', margin: '0 auto' }}>
+                    <svg width="280" height="280" viewBox="0 0 280 280" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
+                      {metricasDashboard.fatiasSVG.map((fatia) => (
+                        <path
+                          key={fatia.id}
+                          d={fatia.pathData}
+                          fill="none"
+                          stroke={fatia.cor}
+                          strokeWidth={fatiaHover?.id === fatia.id ? "42" : "34"}
+                          style={{
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease-in-out',
+                            opacity: fatiaHover && fatiaHover.id !== fatia.id ? 0.35 : 1
+                          }}
+                          onMouseEnter={() => setFatiaHover(fatia)}
+                          onMouseLeave={() => setFatiaHover(null)}
+                        />
+                      ))}
+                    </svg>
 
+                    {/* Miolo Expandido (170px) */}
+                    <div style={{ 
+                      position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                      width: '170px', height: '170px', backgroundColor: '#ffffff', borderRadius: '50%',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      padding: '10px', textAlign: 'center', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.06)',
+                      pointerEvents: 'none'
+                    }}>
+                      {fatiaHover ? (
+                        <>
+                          <span style={{ fontSize: '0.75rem', color: fatiaHover.cor, fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
+                            {fatiaHover.nome}
+                          </span>
+                          <span style={{ fontSize: '1.15rem', color: '#0f172a', fontWeight: '900' }}>
+                            R$ {fatiaHover.valor.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '700' }}>
+                            {fatiaHover.porcentagem.toFixed(1)}%
+                          </span>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '1.2rem', color: '#0f172a', fontWeight: '900' }}>
+                          R$ {metricasDashboard.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tabela Resumo com Estilo Limpo */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b' }}>
+                          <th style={{ padding: '8px' }}>Clínica</th>
+                          <th style={{ padding: '8px', textAlign: 'center' }}>%</th>
+                          <th style={{ padding: '8px', textAlign: 'right' }}>Total (R$)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {metricasDashboard.fatiasSVG.map((fatia) => (
+                          <tr 
+                            key={fatia.id}
+                            onMouseEnter={() => setFatiaHover(fatia)}
+                            onMouseLeave={() => setFatiaHover(null)}
+                            style={{ 
+                              borderBottom: '1px solid #f8fafc', 
+                              backgroundColor: fatiaHover?.id === fatia.id ? '#f0f9ff' : 'transparent',
+                              cursor: 'pointer',
+                              transition: 'background-color 0.15s'
+                            }}
+                          >
+                            <td style={{ padding: '8px', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: fatia.cor, display: 'inline-block' }} />
+                              {fatia.nome}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'center', color: '#64748b', fontWeight: '600' }}>
+                              {fatia.porcentagem.toFixed(1)}%
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', fontWeight: '800', color: '#16a34a' }}>
+                              R$ {fatia.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                </div>
+              )}
             </div>
 
-            {/* SEÇÃO 3: TABELA DE CONTAS A RECEBER (CARD ESTILIZADO) */}
+            {/* PENDÊNCIAS FINANCEIRAS */}
             <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1052,113 +1113,7 @@ export default function App() {
               )}
             </div>
 
-            {/* SEÇÃO 4: FATURAMENTO POR CLÍNICA (GRÁFICO INTERATIVO DE ROSCA) */}
-            <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-              <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ backgroundColor: '#e0f2fe', padding: '6px', borderRadius: '8px', display: 'flex', color: '#0284c7' }}>
-                  <Building2 size={18} />
-                </div>
-                Faturamento por Clínica
-              </div>
-
-              {metricasDashboard.fatiasSVG.length === 0 ? (
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0, textAlign: 'center', padding: '20px' }}>Nenhum procedimento registrado neste período.</p>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '20px', alignItems: 'center' }}>
-                  
-                  {/* Rosca Interativa SVG Ampliada (220px) */}
-                  <div style={{ position: 'relative', width: '210px', height: '210px', margin: '0 auto' }}>
-                    <svg width="210" height="210" viewBox="0 0 220 220" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
-                      {metricasDashboard.fatiasSVG.map((fatia) => (
-                        <path
-                          key={fatia.id}
-                          d={fatia.pathData}
-                          fill="none"
-                          stroke={fatia.cor}
-                          strokeWidth={fatiaHover?.id === fatia.id ? "34" : "28"}
-                          style={{
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease-in-out',
-                            opacity: fatiaHover && fatiaHover.id !== fatia.id ? 0.35 : 1
-                          }}
-                          onMouseEnter={() => setFatiaHover(fatia)}
-                          onMouseLeave={() => setFatiaHover(null)}
-                        />
-                      ))}
-                    </svg>
-
-                    {/* Centro Dinâmico do Gráfico */}
-                    <div style={{ 
-                      position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                      width: '130px', height: '130px', backgroundColor: '#ffffff', borderRadius: '50%',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      padding: '8px', textAlign: 'center', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.05)',
-                      pointerEvents: 'none'
-                    }}>
-                      {fatiaHover ? (
-                        <>
-                          <span style={{ fontSize: '0.7rem', color: fatiaHover.cor, fontWeight: '800', textTransform: 'uppercase', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '110px' }}>
-                            {fatiaHover.nome}
-                          </span>
-                          <span style={{ fontSize: '0.95rem', color: '#0f172a', fontWeight: '900' }}>
-                            R$ {fatiaHover.valor.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                          </span>
-                          <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: '700' }}>
-                            {fatiaHover.porcentagem.toFixed(1)}%
-                          </span>
-                        </>
-                      ) : (
-                        <span style={{ fontSize: '1rem', color: '#0f172a', fontWeight: '900' }}>
-                          R$ {metricasDashboard.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Tabela Resumo de Proporção do Faturamento */}
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
-                          <th style={{ padding: '6px 8px' }}>Clínica</th>
-                          <th style={{ padding: '6px 8px', textAlign: 'center' }}>%</th>
-                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Total (R$)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {metricasDashboard.fatiasSVG.map((fatia) => (
-                          <tr 
-                            key={fatia.id}
-                            onMouseEnter={() => setFatiaHover(fatia)}
-                            onMouseLeave={() => setFatiaHover(null)}
-                            style={{ 
-                              borderBottom: '1px solid #f8fafc', 
-                              backgroundColor: fatiaHover?.id === fatia.id ? '#f0f9ff' : 'transparent',
-                              cursor: 'pointer',
-                              transition: 'background-color 0.15s'
-                            }}
-                          >
-                            <td style={{ padding: '6px 8px', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ width: '8px', height: '8px', borderRadius: '3px', backgroundColor: fatia.cor, display: 'inline-block' }} />
-                              {fatia.nome}
-                            </td>
-                            <td style={{ padding: '6px 8px', textAlign: 'center', color: '#64748b', fontWeight: '600' }}>
-                              {fatia.porcentagem.toFixed(1)}%
-                            </td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '800', color: '#16a34a' }}>
-                              R$ {fatia.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                </div>
-              )}
-            </div>
-
-            {/* SEÇÃO 5: RESUMO DE PACIENTES POR ESPÉCIE */}
+            {/* RESUMO POR ESPÉCIE */}
             <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <div style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0f172a', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ backgroundColor: '#e0f2fe', padding: '6px', borderRadius: '8px', display: 'flex', color: '#0284c7' }}>
