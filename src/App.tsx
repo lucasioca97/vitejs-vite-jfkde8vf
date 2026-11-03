@@ -335,8 +335,7 @@ export default function App() {
     const linhas = registosFiltradosEOrdenados.map(r => [
       `"${r.dataProc || ''}"`, `"${r.paciente || ''}"`, `"${r.especie || 'Canino'}"`, `"${r.raca || ''}"`, `"${r.peso || ''}"`, `"${r.procedimento || ''}"`, `"${r.complexidade || 'Média'}"`, `"${r.tutor || ''}"`, `"${r.local || ''}"`, `"${r.cirurgiao || ''}"`, `"${r.valor || ''}"`, `"${r.formaPgto || ''}"`, `"${r.dataPgto || ''}"`, `"${(r.observacoes || '').replace(/"/g, '""')}"`
     ]);
-    const conteudoCSV = "﻿" + [cabecalho.join(";"), ...linhas.map(l => l.join(";"))].join("
-");
+    const conteudoCSV = "﻿" + [cabecalho.join(";"), ...linhas.map(l => l.join(";"))].join("");
     const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
