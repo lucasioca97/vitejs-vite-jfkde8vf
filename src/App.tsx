@@ -369,12 +369,12 @@ export default function App() {
     const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    const linkDownload = document.createElement('a');
-    linkDownload.href = url;
-    linkDownload.setAttribute('download', `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(linkDownload);
-    linkDownload.click();
-    document.body.removeChild(linkDownload);
+    const elemDownload = document.createElement('a');
+    elemDownload.href = url;
+    elemDownload.setAttribute('download', `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(elemDownload);
+    elemDownload.click();
+    document.body.removeChild(elemDownload);
     URL.revokeObjectURL(url);
   };
 
