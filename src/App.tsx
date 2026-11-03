@@ -368,10 +368,14 @@ export default function App() {
     const conteudoCSV = "\uFEFF" + [cabecalho.join(";"), ...linhas.map(l => l.join(";"))].join("\n");
     const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    
+    // Solução para o TS6133 no Vercel
+    const linkDownload = document.createElement('a');
+    linkDownload.href = url;
+    linkDownload.setAttribute('download', `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(linkDownload);
+    linkDownload.click();
+    document.body.removeChild(linkDownload);
     URL.revokeObjectURL(url);
   };
 
