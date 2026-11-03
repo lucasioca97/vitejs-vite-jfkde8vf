@@ -513,7 +513,7 @@ export default function App() {
         const [, s] = ch.split('-W');
         return `Sem ${s}`;
       }
-      const [a, m, d] = ch.split('-');
+      const [, m, d] = ch.split('-');
       return `${d}/${m}`;
     };
 
