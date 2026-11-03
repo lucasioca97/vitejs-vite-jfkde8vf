@@ -40,9 +40,6 @@ export default function App() {
   
   const [abaAtiva, setAbaAtiva] = useState<'formulario' | 'historico' | 'clinicas' | 'cirurgioes' | 'dashboard'>('historico');
 
-  // Modo de visualização do Histórico
-  const [modoVisualizacao, setModoVisualizacao] = useState<'cards' | 'tabela'>('cards');
-
   // Filtros e Ordenação no Histórico
   const [buscaHistorico, setBuscaHistorico] = useState('');
   const [filtroClinicaHistorico, setFiltroClinicaHistorico] = useState('');
@@ -404,18 +401,6 @@ export default function App() {
     } catch (error: any) { alert("Erro ao atualizar cirurgião: " + error.message); }
   };
 
-  // Função auxiliar para cor de badge por complexidade
-  const getBadgeComplexidade = (nivel: string) => {
-    switch (nivel) {
-      case 'Baixa':
-        return { bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' };
-      case 'Alta':
-        return { bg: '#fff7ed', color: '#c2410c', border: '#ffedd5' };
-      case 'Crítica / Especial':
-        return { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' };
-      default: // Média
-        return { bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' };
-    }
   };
 
   
