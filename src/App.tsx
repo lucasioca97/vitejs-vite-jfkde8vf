@@ -1,13 +1,39 @@
 import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import { 
   Syringe, Plus, Activity, Loader2, 
-  Clock, Building2, Pencil, Trash2, X, BarChart3, Dog, Download, 
-  LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, CheckCircle, AlertCircle, ChevronLeft, LogOut, Copy, ChevronDown, ChevronUp, Share2
+  Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
-// Configuração Real do Firebase fornecida no seu projeto
+// Tipagens TypeScript
+interface Registo {
+  id: string;
+  paciente: string;
+  especie?: string;
+  peso?: string;
+  procedimento: string;
+  complexidade?: string;
+  tutor?: string;
+  local?: string;
+  cirurgiao?: string;
+  valor?: string;
+  formaPgto?: string;
+  dataPgto?: string;
+  dataProc: string;
+  observacoes?: string;
+}
+
+interface Clinica {
+  id: string;
+  nome: string;
+}
+
+interface Cirurgiao {
+  id: string;
+  nome: string;
+}
+
 const firebaseConfig = {
   apiKey: "AIzaSyAUORPRtwSMaYegEQzA0J71G4i6CYLNvJc",
   authDomain: "registro-de-anestesias.firebaseapp.com",
@@ -21,64 +47,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Tipos TypeScript para evitar erros de compilação no Vercel
-export interface Registo {
-  id: string;
-  dataProc: string;
-  local?: string;
-  valor?: string;
-  cirurgiao?: string;
-  dataPgto?: string;
-  paciente: string;
-  especie?: string;
-  peso?: string;
-  procedimento: string;
-  complexidade?: string;
-  formaPgto?: string;
-  tutor?: string;
-  observacoes?: string;
-  dataCriacao?: any;
-}
-
-export interface Clinica {
-  id: string;
-  nome: string;
-  dataCriacao?: any;
-}
-
-export interface Cirurgiao {
-  id: string;
-  nome: string;
-  dataCriacao?: any;
-}
-
-export interface ModalQuitacao {
-  id: string;
-  paciente: string;
-}
-
-export interface FatiaSVG {
-  id: string;
-  nome: string;
-  valor: number;
-  porcentagem: number;
-  cor: string;
-  pathData: string;
-}
-
-export interface EscopoGrafico {
-  tipo: 'ano' | 'mes' | 'semana';
-  chave: string;
-}
-
-// Paleta de cores em tons de azul e destaques para o Dashboard
 const PALETA_CORES = [
   '#0284c7', '#0369a1', '#2563eb', '#3b82f6', '#0ea5e9', 
   '#06b6d4', '#6366f1', '#8b5cf6', '#10b981', '#f59e0b'
 ];
 
 export default function App() {
-  // Estados tipados para TypeScript
   const [registos, setRegistos] = useState<Registo[]>([]);
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [cirurgioes, setCirurgioes] = useState<Cirurgiao[]>([]);
@@ -88,11 +62,9 @@ export default function App() {
   const [salvandoCirurgiao, setSalvandoCirurgiao] = useState(false);
   
   const [abaAtiva, setAbaAtiva] = useState<'historico' | 'formulario' | 'clinicas' | 'cirurgioes' | 'dashboard'>('historico');
-
-  // Modo de visualização do Histórico
   const [modoVisualizacao, setModoVisualizacao] = useState<'cards' | 'tabela'>('cards');
 
-  // Filtros no Histórico
+  // Filtros
   const [buscaHistorico, setBuscaHistorico] = useState('');
   const [filtroClinicaHistorico, setFiltroClinicaHistorico] = useState('');
   const [filtroStatusHistorico, setFiltroStatusHistorico] = useState('');
@@ -100,7 +72,7 @@ export default function App() {
   const [filtroDataFim, setFiltroDataFim] = useState('');
   const [ordenacaoHistorico, setOrdenacaoHistorico] = useState<'data-desc' | 'data-asc' | 'paciente-asc' | 'paciente-desc'>('data-desc');
 
-  // Formulário - Data pré-preenchida com HOJE como primeiro item
+  // Campos do Formulário
   const [dataProc, setDataProc] = useState(() => new Date().toISOString().slice(0, 10));
   const [local, setLocal] = useState('');
   const [valor, setValor] = useState('');
@@ -116,12 +88,11 @@ export default function App() {
   const [complexidade, setComplexidade] = useState('Média');
   const [observacoes, setObservacoes] = useState('');
 
-  // Modal Quitação
-  const [modalQuitacao, setModalQuitacao] = useState<ModalQuitacao | null>(null);
+  // Modais e Edições
+  const [modalQuitacao, setModalQuitacao] = useState<{ id: string; paciente: string } | null>(null);
   const [quitFormaPgto, setQuitFormaPgto] = useState('Pix');
   const [quitDataPgto, setQuitDataPgto] = useState(() => new Date().toISOString().slice(0, 10));
 
-  // Clínicas e Cirurgiões
   const [novaClinicaNome, setNovaClinicaNome] = useState('');
   const [clinicaEditandoId, setClinicaEditandoId] = useState<string | null>(null);
   const [nomeClinicaEditado, setNomeClinicaEditado] = useState('');
@@ -130,64 +101,40 @@ export default function App() {
   const [cirurgiaoEditandoId, setCirurgiaoEditandoId] = useState<string | null>(null);
   const [nomeCirurgiaoEditado, setNomeCirurgiaoEditado] = useState('');
 
-  // Edição em linha
   const [fichaEditandoId, setFichaEditandoId] = useState<string | null>(null);
   const [editFichaData, setEditFichaData] = useState<Partial<Registo>>({});
 
-  // Gráficos e Relatório
+  // Dashboard
   const [nivelDrill, setNivelDrill] = useState<'ano' | 'mes' | 'semana' | 'dia'>('mes');
-  const [escopoGrafico, setEscopoGrafico] = useState<EscopoGrafico | null>(null);
+  const [escopoGrafico, setEscopoGrafico] = useState<{ tipo: 'ano' | 'mes' | 'semana'; chave: string } | null>(null);
   const scrollGraficoRef = useRef<HTMLDivElement>(null);
+  const [fatiaHover, setFatiaHover] = useState<{ id: string; nome: string; valor: number; porcentagem: number; cor: string } | null>(null);
+  const [clinicaExpandidaPendencia, setClinicaExpandidaPendencia] = useState<string | null>(null);
 
-  const [tipoPeriodo] = useState<'mes' | 'ano' | 'personalizado' | 'todos'>('todos');
-  const [mesFiltro] = useState(() => {
-    const hoje = new Date();
-    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [anoFiltro] = useState(() => String(new Date().getFullYear()));
-  const [dataInicioFiltro] = useState('');
-  const [dataFimFiltro] = useState('');
-  const [fatiaHover, setFatiaHover] = useState<FatiaSVG | null>(null);
-  const [clinicaPendenteExpandida, setClinicaPendenteExpandida] = useState<string | null>(null);
-  const [copiadoWhatsApp, setCopiadoWhatsApp] = useState(false);
-
-  // Escutar Firebase em Tempo Real
+  // Escuta Firebase em tempo real
   useEffect(() => {
     const q = query(collection(db, 'anestesias'), orderBy('dataCriacao', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Registo[];
       setRegistos(dados);
-    }, (error) => {
-      console.warn("Usando dados locais se não houver acesso à rede:", error.message);
     });
-    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     const q = query(collection(db, 'clinicas'), orderBy('nome', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Clinica[];
       setClinicas(dados);
     });
-    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     const q = query(collection(db, 'cirurgioes'), orderBy('nome', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Cirurgiao[];
       setCirurgioes(dados);
     });
-    return () => unsubscribe();
   }, []);
-
-  // Formatação de data BR dd/mm/aaaa
-  const formatarDataBR = (dataStr?: string) => {
-    if (!dataStr) return '—';
-    const partes = dataStr.split('-');
-    if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
-    return dataStr;
-  };
 
   const handlePesoChange = (valRaw: string, isEdit = false) => {
     const val = valRaw.replace(/[^0-9.,]/g, '');
@@ -208,7 +155,6 @@ export default function App() {
     else setValor(valFormatado);
   };
 
-  // Salvar Ficha no Firebase
   const guardarRegisto = async (e: FormEvent) => {
     e.preventDefault();
     setSalvando(true);
@@ -218,41 +164,22 @@ export default function App() {
         : '';
 
       await addDoc(collection(db, 'anestesias'), {
-        dataProc,
-        local,
-        valor: valor || '0,00',
-        cirurgiao,
+        dataProc, local, valor, cirurgiao,
         dataPgto: dataPagamentoFinal,
-        paciente,
-        especie,
-        peso,
-        procedimento,
-        complexidade,
+        paciente, especie, peso,
         formaPgto: statusPgto === 'Pago' ? formaPgto : '',
-        tutor,
-        observacoes,
+        tutor, procedimento, complexidade, observacoes,
         dataCriacao: serverTimestamp()
       });
 
-      // Reset mantendo a data atual pré-preenchida
       setDataProc(new Date().toISOString().slice(0, 10));
-      setLocal('');
-      setValor('');
-      setCirurgiao('');
-      setDataPgto('');
-      setPaciente('');
-      setEspecie('Canino');
-      setPeso('');
-      setFormaPgto('Pix');
-      setStatusPgto('Pago');
-      setTutor('');
-      setProcedimento('');
-      setComplexidade('Média');
-      setObservacoes('');
-
+      setLocal(''); setValor(''); setCirurgiao(''); setDataPgto('');
+      setPaciente(''); setEspecie('Canino'); setPeso(''); setFormaPgto('Pix');
+      setStatusPgto('Pago'); setTutor(''); setProcedimento(''); setComplexidade('Média'); setObservacoes('');
       setAbaAtiva('historico');
-    } catch (error: any) {
-      alert("Erro ao gravar ficha no banco de dados: " + (error?.message || error));
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao guardar: " + err.message);
     }
     setSalvando(false);
   };
@@ -271,40 +198,40 @@ export default function App() {
         formaPgto: quitFormaPgto
       });
       setModalQuitacao(null);
-    } catch (error: any) {
-      alert("Erro ao quitar: " + (error?.message || error));
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao quitar: " + err.message);
     }
   };
 
   const alternarStatusPendente = async (id: string) => {
     try {
-      await updateDoc(doc(db, 'anestesias', id), {
-        dataPgto: '',
-        formaPgto: ''
-      });
-    } catch (error: any) {
-      alert("Erro ao alterar status: " + (error?.message || error));
+      await updateDoc(doc(db, 'anestesias', id), { dataPgto: '', formaPgto: '' });
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao alterar status: " + err.message);
     }
   };
 
   const excluirFicha = async (id: string, nomePaciente: string) => {
-    if (confirm(`Tem certeza que deseja excluir a ficha do paciente "${nomePaciente}"?`)) {
+    if (confirm(`Deseja excluir a ficha do paciente "${nomePaciente}"?`)) {
       try {
         await deleteDoc(doc(db, 'anestesias', id));
-      } catch (error: any) {
-        alert("Erro ao excluir ficha: " + (error?.message || error));
+      } catch (error: unknown) {
+        const err = error as Error;
+        alert("Erro ao excluir: " + err.message);
       }
     }
   };
 
   const iniciarEdicaoFicha = (registo: Registo) => {
     setFichaEditandoId(registo.id);
-    setEditFichaData({ ...registo, complexidade: registo.complexidade || 'Média' });
+    setEditFichaData({ ...registo });
   };
 
   const salvarEdicaoFicha = async (id: string) => {
     if (!editFichaData.paciente?.trim() || !editFichaData.procedimento?.trim()) {
-      alert("Nome do paciente e Procedimento são obrigatórios.");
+      alert("Paciente e Procedimento são obrigatórios.");
       return;
     }
     try {
@@ -324,12 +251,12 @@ export default function App() {
         observacoes: editFichaData.observacoes || ''
       });
       setFichaEditandoId(null);
-    } catch (error: any) {
-      alert("Erro ao atualizar ficha: " + (error?.message || error));
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao atualizar: " + err.message);
     }
   };
 
-  // Filtros do Histórico
   const registosFiltradosEOrdenados = useMemo(() => {
     return registos.filter(item => {
       const termo = buscaHistorico.toLowerCase();
@@ -341,16 +268,15 @@ export default function App() {
         (item.cirurgiao && item.cirurgiao.toLowerCase().includes(termo));
 
       const bateClinica = !filtroClinicaHistorico || item.local === filtroClinicaHistorico;
-      
       let bateStatus = true;
       if (filtroStatusHistorico === 'pago') bateStatus = Boolean(item.dataPgto);
       if (filtroStatusHistorico === 'pendente') bateStatus = !item.dataPgto;
 
-      let bateData = true;
-      if (filtroDataInicio && item.dataProc < filtroDataInicio) bateData = false;
-      if (filtroDataFim && item.dataProc > filtroDataFim) bateData = false;
+      let batePeriodo = true;
+      if (filtroDataInicio && item.dataProc < filtroDataInicio) batePeriodo = false;
+      if (filtroDataFim && item.dataProc > filtroDataFim) batePeriodo = false;
 
-      return bateBusca && bateClinica && bateStatus && bateData;
+      return bateBusca && bateClinica && bateStatus && batePeriodo;
     }).sort((a, b) => {
       if (ordenacaoHistorico === 'paciente-asc') return (a.paciente || '').localeCompare(b.paciente || '');
       if (ordenacaoHistorico === 'paciente-desc') return (b.paciente || '').localeCompare(a.paciente || '');
@@ -363,18 +289,18 @@ export default function App() {
     if (registosFiltradosEOrdenados.length === 0) return;
     const cabecalho = ["Data Procedimento", "Paciente", "Espécie", "Peso (kg)", "Procedimento", "Complexidade", "Tutor", "Local / Clínica", "Cirurgião", "Valor (R$)", "Forma Pagamento", "Data Pagamento", "Observações"];
     const linhas = registosFiltradosEOrdenados.map(r => [
-      `"${formatarDataBR(r.dataProc)}"`, `"${r.paciente || ''}"`, `"${r.especie || 'Canino'}"`, `"${r.peso || ''}"`, `"${r.procedimento || ''}"`, `"${r.complexidade || 'Média'}"`, `"${r.tutor || ''}"`, `"${r.local || ''}"`, `"${r.cirurgiao || ''}"`, `"${r.valor || ''}"`, `"${r.formaPgto || ''}"`, `"${formatarDataBR(r.dataPgto)}"`, `"${(r.observacoes || '').replace(/"/g, '""')}"`
+      `"${r.dataProc || ''}"`, `"${r.paciente || ''}"`, `"${r.especie || 'Canino'}"`, `"${r.peso || ''}"`, `"${r.procedimento || ''}"`, `"${r.complexidade || 'Média'}"`, `"${r.tutor || ''}"`, `"${r.local || ''}"`, `"${r.cirurgiao || ''}"`, `"${r.valor || ''}"`, `"${r.formaPgto || ''}"`, `"${r.dataPgto || ''}"`, `"${(r.observacoes || '').replace(/"/g, '""')}"`
     ]);
     const conteudoCSV = "\uFEFF" + [cabecalho.join(";"), ...linhas.map(l => l.join(";"))].join("\n");
     const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    const elemDownload = document.createElement('a');
-    elemDownload.href = url;
-    elemDownload.setAttribute('download', `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(elemDownload);
-    elemDownload.click();
-    document.body.removeChild(elemDownload);
+    const linkDownload = document.createElement('a');
+    linkDownload.setAttribute('href', url);
+    linkDownload.setAttribute('download', `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(linkDownload);
+    linkDownload.click();
+    document.body.removeChild(linkDownload);
     URL.revokeObjectURL(url);
   };
 
@@ -385,13 +311,19 @@ export default function App() {
     try {
       await addDoc(collection(db, 'clinicas'), { nome: novaClinicaNome.trim(), dataCriacao: serverTimestamp() });
       setNovaClinicaNome('');
-    } catch (error: any) { alert("Erro ao cadastrar clínica: " + (error?.message || error)); }
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao cadastrar clínica: " + err.message);
+    }
     setSalvandoClinica(false);
   };
 
   const excluirClinica = async (id: string, nome: string) => {
-    if (confirm(`Excluir a clínica "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'clinicas', id)); } catch (error: any) { alert("Erro ao excluir clínica: " + (error?.message || error)); }
+    if (confirm(`Excluir clínica "${nome}"?`)) {
+      try { await deleteDoc(doc(db, 'clinicas', id)); } catch (error: unknown) {
+        const err = error as Error;
+        alert("Erro ao excluir: " + err.message);
+      }
     }
   };
 
@@ -399,8 +331,11 @@ export default function App() {
     if (!nomeClinicaEditado.trim()) return;
     try {
       await updateDoc(doc(db, 'clinicas', id), { nome: nomeClinicaEditado.trim() });
-      setClinicaEditandoId(null);
-    } catch (error: any) { alert("Erro ao atualizar clínica: " + (error?.message || error)); }
+      setClinicaEditandoId(null); setNomeClinicaEditado('');
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao atualizar: " + err.message);
+    }
   };
 
   const guardarCirurgiao = async (e: FormEvent) => {
@@ -410,13 +345,19 @@ export default function App() {
     try {
       await addDoc(collection(db, 'cirurgioes'), { nome: novoCirurgiaoNome.trim(), dataCriacao: serverTimestamp() });
       setNovoCirurgiaoNome('');
-    } catch (error: any) { alert("Erro ao cadastrar cirurgião: " + (error?.message || error)); }
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao cadastrar cirurgião: " + err.message);
+    }
     setSalvandoCirurgiao(false);
   };
 
   const excluirCirurgiao = async (id: string, nome: string) => {
-    if (confirm(`Excluir o cirurgião "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'cirurgioes', id)); } catch (error: any) { alert("Erro ao excluir cirurgião: " + (error?.message || error)); }
+    if (confirm(`Excluir cirurgião "${nome}"?`)) {
+      try { await deleteDoc(doc(db, 'cirurgioes', id)); } catch (error: unknown) {
+        const err = error as Error;
+        alert("Erro ao excluir: " + err.message);
+      }
     }
   };
 
@@ -424,11 +365,20 @@ export default function App() {
     if (!nomeCirurgiaoEditado.trim()) return;
     try {
       await updateDoc(doc(db, 'cirurgioes', id), { nome: nomeCirurgiaoEditado.trim() });
-      setCirurgiaoEditandoId(null);
-    } catch (error: any) { alert("Erro ao atualizar cirurgião: " + (error?.message || error)); }
+      setCirurgiaoEditandoId(null); setNomeCirurgiaoEditado('');
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert("Erro ao atualizar: " + err.message);
+    }
   };
 
-  // Processamento de Dados do Relatório
+  const formatarDataBR = (strData: string) => {
+    if (!strData) return '—';
+    const partes = strData.split('-');
+    if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    return strData;
+  };
+
   const getAnoFromData = (d: string) => d ? d.slice(0, 4) : '';
   const getMesFromData = (d: string) => d ? d.slice(0, 7) : '';
   const getSemanaFromData = (d: string) => {
@@ -442,7 +392,7 @@ export default function App() {
   };
 
   const dadosGraficoDrill = useMemo(() => {
-    const mapaCoresClinicas: Record<string, string> = {};
+    const mapaCoresClinicas: { [nome: string]: string } = {};
     clinicas.forEach((c, idx) => { mapaCoresClinicas[c.nome] = PALETA_CORES[idx % PALETA_CORES.length]; });
 
     const filtrados = registos.filter(r => {
@@ -453,10 +403,23 @@ export default function App() {
       return getSemanaFromData(r.dataProc) === escopoGrafico.chave;
     });
 
-    const grupos: Record<string, Record<string, number>> = {};
-    const totaisPorGrupo: Record<string, number> = {};
+    const grupos: { [chave: string]: { [local: string]: number } } = {};
+    const totaisPorGrupo: { [chave: string]: number } = {};
     const clinicasPresentes = new Set<string>();
     let totalPeriodo = 0;
+
+    if (nivelDrill === 'dia' && escopoGrafico) {
+      const hojeStr = new Date().toISOString().slice(0, 10);
+      let dataCursor = new Date(`${escopoGrafico.chave}-01T00:00:00Z`);
+      const dataLimite = new Date(`${hojeStr}T00:00:00Z`);
+
+      while (dataCursor <= dataLimite) {
+        const diaIso = dataCursor.toISOString().slice(0, 10);
+        grupos[diaIso] = {};
+        totaisPorGrupo[diaIso] = 0;
+        dataCursor.setUTCDate(dataCursor.getUTCDate() + 1);
+      }
+    }
 
     filtrados.forEach(r => {
       const v = r.valor ? parseFloat(String(r.valor).replace(/\./g, '').replace(',', '.')) || 0 : 0;
@@ -475,34 +438,10 @@ export default function App() {
       totalPeriodo += v;
     });
 
-    // Se estiver no nível DIA, preencher todos os dias até HOJE
-    if (nivelDrill === 'dia') {
-      let dataInicial: Date;
-      if (escopoGrafico && escopoGrafico.tipo === 'mes') {
-        const [anoScope, mesScope] = escopoGrafico.chave.split('-');
-        dataInicial = new Date(Number(anoScope), Number(mesScope) - 1, 1);
-      } else {
-        dataInicial = new Date();
-        dataInicial.setDate(dataInicial.getDate() - 30);
-      }
-
-      const hoje = new Date();
-      const tempIter = new Date(dataInicial);
-
-      while (tempIter <= hoje) {
-        const keyDia = tempIter.toISOString().slice(0, 10);
-        if (!grupos[keyDia]) {
-          grupos[keyDia] = {};
-          totaisPorGrupo[keyDia] = 0;
-        }
-        tempIter.setDate(tempIter.getDate() + 1);
-      }
-    }
-
     const chavesOrdenadas = Object.keys(grupos).sort();
     const maiorValorTotal = Math.max(...Object.values(totaisPorGrupo), 1);
 
-    const formatarRotulo = (ch: string, n = nivelDrill) => {
+    const formatarRotulo = (ch: string, n: 'ano' | 'mes' | 'semana' | 'dia' = nivelDrill): string => {
       const ms = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       if (n === 'ano') return ch;
       if (n === 'mes') {
@@ -524,23 +463,11 @@ export default function App() {
   }, [registos, clinicas, nivelDrill, escopoGrafico]);
 
   const metricasDashboard = useMemo(() => {
-    const fichas = registos.filter(r => {
-      if (!r.dataProc) return false;
-      if (tipoPeriodo === 'mes') return r.dataProc.startsWith(mesFiltro);
-      if (tipoPeriodo === 'ano') return r.dataProc.startsWith(anoFiltro);
-      if (tipoPeriodo === 'personalizado') {
-        if (dataInicioFiltro && r.dataProc < dataInicioFiltro) return false;
-        if (dataFimFiltro && r.dataProc > dataFimFiltro) return false;
-      }
-      return true;
-    });
-
     let totalGeral = 0, totalPago = 0, totalPendente = 0, caes = 0, gatos = 0;
-    const porClinica: Record<string, number> = {};
-    const pendentesPorClinica: Record<string, { valor: number; qtd: number; fichas: Registo[] }> = {};
-    const listaFichasPendentes: Registo[] = [];
+    const porClinica: { [k: string]: number } = {};
+    const pendentesPorClinica: { [k: string]: { valor: number, qtd: number, fichas: Registo[] } } = {};
 
-    fichas.forEach(item => {
+    registos.forEach(item => {
       const v = item.valor ? parseFloat(item.valor.replace('.', '').replace(',', '.')) : 0;
       totalGeral += v;
       const cNome = item.local || 'Não informada';
@@ -549,11 +476,12 @@ export default function App() {
         totalPago += v;
       } else {
         totalPendente += v;
-        if (!pendentesPorClinica[cNome]) pendentesPorClinica[cNome] = { valor: 0, qtd: 0, fichas: [] };
+        if (!pendentesPorClinica[cNome]) {
+          pendentesPorClinica[cNome] = { valor: 0, qtd: 0, fichas: [] };
+        }
         pendentesPorClinica[cNome].valor += v;
         pendentesPorClinica[cNome].qtd += 1;
         pendentesPorClinica[cNome].fichas.push(item);
-        listaFichasPendentes.push(item);
       }
 
       if (item.especie === 'Felino' || item.especie === 'Gato') gatos++;
@@ -566,7 +494,7 @@ export default function App() {
     const listaClinicas = Object.entries(porClinica).sort((a, b) => b[1] - a[1]);
     let anguloAcumulado = 0;
 
-    const fatiasSVG: FatiaSVG[] = listaClinicas.map(([nome, valor], index) => {
+    const fatiasSVG = listaClinicas.map(([nome, valor], index) => {
       const porcentagem = totalGeral > 0 ? (valor / totalGeral) * 100 : 0;
       const angulo = totalGeral > 0 ? (valor / totalGeral) * 360 : 0;
       const inicioAng = anguloAcumulado;
@@ -593,59 +521,39 @@ export default function App() {
     });
 
     return {
-      quantidade: fichas.length, totalGeral, totalPago, totalPendente,
-      taxaRecebimento, caes, gatos, porClinica, fatiasSVG, pendentesPorClinica, listaFichasPendentes
+      quantidade: registos.length, totalGeral, totalPago, totalPendente,
+      taxaRecebimento, caes, gatos, porClinica, fatiasSVG, pendentesPorClinica
     };
-  }, [registos, tipoPeriodo, mesFiltro, anoFiltro, dataInicioFiltro, dataFimFiltro]);
+  }, [registos]);
 
-  // Função para copiar resumo formatado diretamente para WhatsApp
-  const copiarResumoWhatsApp = (clinicaNome: string | null = null) => {
-    let pendentes: Registo[] = [];
-    if (clinicaNome) {
-      pendentes = metricasDashboard.pendentesPorClinica[clinicaNome]?.fichas || [];
-    } else {
-      pendentes = metricasDashboard.listaFichasPendentes;
-    }
+  const copiarWhatsAppPendencias = (clinicaFiltro?: string) => {
+    let texto = `📋 *PENDÊNCIAS FINANCEIRAS - ANESTVET*\n\n`;
+    let totalGeral = 0;
 
-    if (pendentes.length === 0) return;
-
-    let texto = `📋 *ANESTVET - RELATÓRIO DE PENDÊNCIAS*\n`;
-    if (clinicaNome) {
-      texto += `🏥 *Clínica:* ${clinicaNome}\n`;
-    }
-    texto += `🗓️ Data da extração: ${new Date().toLocaleDateString('pt-BR')}\n`;
-    texto += `------------------------------------\n\n`;
-
-    let totalResumo = 0;
-    pendentes.forEach((f, idx) => {
-      const valorNum = f.valor ? parseFloat(f.valor.replace('.', '').replace(',', '.')) || 0 : 0;
-      totalResumo += valorNum;
-      texto += `${idx + 1}. *${f.paciente}* (${f.especie || 'Canino'})\n`;
-      texto += `   • Data: ${formatarDataBR(f.dataProc)}\n`;
-      texto += `   • Proc: ${f.procedimento || 'Anestesia'}\n`;
-      if (!clinicaNome && f.local) texto += `   • Clínica: ${f.local}\n`;
-      if (f.tutor) texto += `   • Tutor: ${f.tutor}\n`;
-      texto += `   • *Valor: R$ ${f.valor || '0,00'}*\n\n`;
+    Object.entries(metricasDashboard.pendentesPorClinica).forEach(([cNome, dados]) => {
+      if (clinicaFiltro && cNome !== clinicaFiltro) return;
+      texto += `🏥 *${cNome}*\n`;
+      dados.fichas.forEach(f => {
+        const val = f.valor || '0,00';
+        texto += `  • ${formatarDataBR(f.dataProc)} - ${f.paciente} (${f.especie || 'Canino'}) - ${f.procedimento}: R$ ${val}\n`;
+      });
+      texto += `*Subtotal:* R$ ${dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
+      totalGeral += dados.valor;
     });
 
-    texto += `------------------------------------\n`;
-    texto += `💰 *TOTAL PENDENTE: R$ ${totalResumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*`;
+    texto += `💰 *TOTAL RETIDO:* R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 
-    const el = document.createElement('textarea');
-    el.value = texto;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
-
-    setCopiadoWhatsApp(true);
-    setTimeout(() => setCopiadoWhatsApp(false), 2500);
+    navigator.clipboard.writeText(texto).then(() => {
+      alert("Lista de pendências copiada! Abra o WhatsApp e cole a mensagem.");
+    }).catch(() => {
+      alert("Não foi possível copiar automaticamente. Selecione e copie o texto manualmente.");
+    });
   };
 
   return (
-    <div className="min-h-screen bg-[#f8faf8] text-gray-800 flex flex-col font-sans pb-28">
+    <div className="min-h-screen bg-[#f8faf8] text-gray-800 font-sans pb-28">
       
-      {/* Navbar AnestVet */}
+      {/* Top Navbar */}
       <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
         <div className="flex items-center gap-2.5">
           <div className="w-10 h-10 bg-[#0284c7] rounded-full flex items-center justify-center text-white shadow-md shadow-sky-500/20">
@@ -658,14 +566,15 @@ export default function App() {
         </button>
       </header>
 
-      {/* Conteúdo Principal */}
-      <main className="flex-1 p-4 max-w-xl mx-auto w-full">
+      {/* Main Container Alinhado à Esquerda */}
+      <main className="p-4 max-w-lg mx-auto w-full text-left">
         
-        {/* ABA: REGISTROS / HISTÓRICO */}
+        {/* VIEW: REGISTROS */}
         {abaAtiva === 'historico' && (
           <div className="space-y-4">
+            
             {/* Header Totais */}
-            <div className="flex justify-between items-center px-1">
+            <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Registros</h1>
                 <p className="text-gray-500 font-medium text-sm mt-0.5">
@@ -697,104 +606,96 @@ export default function App() {
               </div>
             </div>
 
-            {/* Pesquisa */}
-            <div className="relative">
-              <Search className="w-5 h-5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Buscar paciente, tutor, cirurgia..."
-                value={buscaHistorico}
-                onChange={(e) => setBuscaHistorico(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-[#0284c7] shadow-sm"
-              />
+            {/* Busca & Filtro */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="w-5 h-5 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar paciente, tutor, cirurgia..."
+                  value={buscaHistorico}
+                  onChange={(e) => setBuscaHistorico(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-2xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-[#0284c7] shadow-sm"
+                />
+              </div>
+              <button 
+                onClick={() => setFiltroStatusHistorico(filtroStatusHistorico === '' ? 'pago' : filtroStatusHistorico === 'pago' ? 'pendente' : '')}
+                className={`border rounded-2xl px-3.5 flex items-center justify-center transition-all ${filtroStatusHistorico ? 'bg-sky-50 border-[#0284c7] text-[#0284c7]' : 'bg-white border-gray-200 text-gray-600'}`}
+              >
+                <Filter className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* FILTROS: Status e Períodos */}
-            <div className="bg-white p-3.5 rounded-2xl border border-gray-100 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-700">
-                <span className="flex items-center gap-1.5"><Filter className="w-4 h-4 text-[#0284c7]" /> Filtros</span>
-                {(filtroStatusHistorico || filtroDataInicio || filtroDataFim || filtroClinicaHistorico) && (
-                  <button 
-                    onClick={() => { setFiltroStatusHistorico(''); setFiltroDataInicio(''); setFiltroDataFim(''); setFiltroClinicaHistorico(''); }}
-                    className="text-[#0284c7] text-[11px] font-bold"
-                  >
-                    Limpar Filtros
-                  </button>
-                )}
-              </div>
-
-              {/* Botões de Filtro Status */}
-              <div className="flex gap-1.5">
-                {[
-                  { id: '', label: 'Todos' },
-                  { id: 'pago', label: 'Pago' },
-                  { id: 'pendente', label: 'Pendente' }
-                ].map((st) => (
-                  <button
-                    key={st.id}
-                    onClick={() => setFiltroStatusHistorico(st.id)}
-                    className={`flex-1 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                      filtroStatusHistorico === st.id 
-                        ? 'bg-sky-50 text-[#0284c7] border-[#0284c7] font-bold' 
-                        : 'bg-gray-50 text-gray-600 border-gray-100'
-                    }`}
-                  >
-                    {st.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Filtro de Períodos */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <label className="block text-[10px] text-gray-400 font-semibold mb-1">Período De:</label>
-                  <input
-                    type="date"
-                    value={filtroDataInicio}
-                    onChange={(e) => setFiltroDataInicio(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs bg-gray-50 text-gray-700 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-gray-400 font-semibold mb-1">Período Até:</label>
-                  <input
-                    type="date"
-                    value={filtroDataFim}
-                    onChange={(e) => setFiltroDataFim(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs bg-gray-50 text-gray-700 outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Clínica e Ordenação */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-50">
-                <select 
-                  value={filtroClinicaHistorico} 
-                  onChange={(e) => setFiltroClinicaHistorico(e.target.value)}
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-medium text-gray-700 outline-none"
+            {/* Filtros de Status Botões */}
+            <div className="flex gap-2">
+              {[
+                { id: '', label: 'Todos' },
+                { id: 'pago', label: 'Pago' },
+                { id: 'pendente', label: 'Pendente' }
+              ].map(st => (
+                <button
+                  key={st.id}
+                  onClick={() => setFiltroStatusHistorico(st.id)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    filtroStatusHistorico === st.id
+                      ? 'bg-[#0284c7] text-white border-[#0284c7]'
+                      : 'bg-white text-gray-600 border-gray-200'
+                  }`}
                 >
-                  <option value="">Todas as Clínicas</option>
-                  {clinicas.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
-                </select>
-                <select 
-                  value={ordenacaoHistorico} 
-                  onChange={(e) => setOrdenacaoHistorico(e.target.value as any)}
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-[#0284c7] outline-none"
-                >
-                  <option value="data-desc">Mais Recentes</option>
-                  <option value="data-asc">Mais Antigos</option>
-                  <option value="paciente-asc">Paciente (A-Z)</option>
-                </select>
+                  {st.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Filtros de Intervalo de Data */}
+            <div className="grid grid-cols-2 gap-2 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Período De:</label>
+                <input
+                  type="date"
+                  value={filtroDataInicio}
+                  onChange={(e) => setFiltroDataInicio(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs text-gray-700 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Período Até:</label>
+                <input
+                  type="date"
+                  value={filtroDataFim}
+                  onChange={(e) => setFiltroDataFim(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs text-gray-700 outline-none"
+                />
               </div>
             </div>
 
-            {/* LISTAGEM DOS CARDS */}
+            {/* Seletores Secundários */}
+            <div className="grid grid-cols-2 gap-2">
+              <select 
+                value={filtroClinicaHistorico} 
+                onChange={(e) => setFiltroClinicaHistorico(e.target.value)}
+                className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-700 outline-none"
+              >
+                <option value="">Todas as Clínicas</option>
+                {clinicas.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+              </select>
+              <select 
+                value={ordenacaoHistorico} 
+                onChange={(e) => setOrdenacaoHistorico(e.target.value as any)}
+                className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-[#0284c7] outline-none"
+              >
+                <option value="data-desc">Mais Recentes</option>
+                <option value="data-asc">Mais Antigos</option>
+                <option value="paciente-asc">Paciente (A-Z)</option>
+              </select>
+            </div>
+
+            {/* LISTA DE CARDS */}
             {modoVisualizacao === 'cards' ? (
               <div className="space-y-3.5">
                 {registosFiltradosEOrdenados.map((item) => (
-                  <div key={item.id} className="bg-white border border-gray-100 rounded-3xl p-4 shadow-sm hover:shadow-md transition-all">
+                  <div key={item.id} className="bg-white border border-gray-100 rounded-3xl p-4 shadow-sm">
                     {fichaEditandoId === item.id ? (
-                      /* Edição rápida */
                       <div className="space-y-3">
                         <div className="flex justify-between items-center border-b pb-2">
                           <span className="font-bold text-sm text-[#0284c7]">Editar Ficha</span>
@@ -810,26 +711,22 @@ export default function App() {
                           <input type="text" value={editFichaData.valor || ''} onChange={(e) => handleValorChange(e.target.value, true)} placeholder="Valor R$" className="border rounded-xl p-2 text-xs" />
                           <input type="date" value={editFichaData.dataProc || ''} onChange={(e) => setEditFichaData({ ...editFichaData, dataProc: e.target.value })} className="border rounded-xl p-2 text-xs" />
                         </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => salvarEdicaoFicha(item.id)} className="flex-1 bg-[#0284c7] text-white py-2 rounded-xl text-xs font-bold">Salvar</button>
-                        </div>
+                        <button onClick={() => salvarEdicaoFicha(item.id)} className="w-full bg-[#0284c7] text-white py-2 rounded-xl text-xs font-bold">Salvar Alterações</button>
                       </div>
                     ) : (
-                      /* Exibição normal */
                       <>
                         <div className="flex justify-between items-start mb-1">
                           <div>
                             <h3 className="font-bold text-gray-900 text-base leading-snug">
-                              {item.paciente} <span className="font-normal text-gray-500">· {item.especie || 'Canino'}{item.peso ? `, ${item.peso} kg` : ''}</span>
+                              {item.paciente} <span className="font-normal text-gray-500">· {item.especie || 'Canino'}, {item.peso ? `${item.peso} kg` : ''}</span>
                             </h3>
                             <p className="text-gray-700 font-medium text-sm mt-0.5">
-                              {item.procedimento} {item.complexidade && <span className="text-xs text-sky-700 font-semibold bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100 ml-1">{item.complexidade}</span>}
+                              {item.procedimento} <span className="text-xs text-[#0284c7] font-semibold">({item.complexidade || 'Média'})</span>
                             </p>
                           </div>
                           <span className="font-bold text-lg text-gray-900">R$ {item.valor || '0,00'}</span>
                         </div>
 
-                        {/* Detalhes Médicos */}
                         <div className="flex justify-between text-xs text-gray-500 my-3">
                           <div className="space-y-1">
                             <p><span className="text-gray-400">Tutor:</span> {item.tutor || '—'}</p>
@@ -837,15 +734,14 @@ export default function App() {
                             <p><span className="text-gray-400">Cirurgião:</span> {item.cirurgiao || '—'}</p>
                           </div>
                           <div className="text-right space-y-1">
-                            <p className="font-semibold text-gray-700">{formatarDataBR(item.dataProc)}</p>
-                            <p className="font-semibold text-[#0284c7]">{item.formaPgto || 'Pendente'}</p>
+                            <p className="font-medium text-gray-600">{formatarDataBR(item.dataProc)}</p>
+                            <p className="font-semibold text-gray-700">{item.formaPgto || 'Pendente'}</p>
                           </div>
                         </div>
 
-                        {/* Ações */}
                         <div className="flex items-center gap-2 pt-2 border-t border-gray-50">
                           {item.dataPgto ? (
-                            <span className="bg-emerald-50 text-emerald-600 text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 border border-emerald-100">
+                            <span className="bg-sky-50 text-[#0284c7] text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 border border-sky-100">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Pago
                             </span>
                           ) : (
@@ -880,7 +776,7 @@ export default function App() {
                           ) : (
                             <button 
                               onClick={() => abrirModalQuitacao(item.id, item.paciente)}
-                              className="px-3.5 py-2 bg-[#0284c7] text-white rounded-xl text-xs font-semibold hover:bg-sky-700 transition-colors shadow-sm"
+                              className="px-3.5 py-2 bg-[#0284c7] text-white rounded-xl text-xs font-semibold shadow-sm"
                             >
                               Quitar
                             </button>
@@ -892,7 +788,6 @@ export default function App() {
                 ))}
               </div>
             ) : (
-              /* Modo Tabela */
               <div className="bg-white rounded-2xl border border-gray-200 overflow-x-auto shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-gray-50 text-gray-600 border-b">
@@ -926,7 +821,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA: FORMULÁRIO DE NOVO REGISTRO */}
+        {/* VIEW: NOVO REGISTRO */}
         {abaAtiva === 'formulario' && (
           <form onSubmit={guardarRegisto} className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm space-y-6">
             <div className="flex items-center gap-3">
@@ -943,19 +838,17 @@ export default function App() {
               </div>
             </div>
 
-            {/* SEÇÃO PACIENTE */}
             <div className="space-y-4">
-              <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">PACIENTE E DATA</span>
+              <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">DATA & PACIENTE</span>
               
-              {/* Data pré-preenchida no topo */}
               <div>
-                <label className="block text-xs font-semibold text-[#0284c7] mb-1.5">Data do procedimento *</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Data do procedimento *</label>
                 <input
                   type="date"
                   required
                   value={dataProc}
                   onChange={(e) => setDataProc(e.target.value)}
-                  className="w-full border border-sky-200 bg-sky-50/50 rounded-xl px-4 py-3 text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#0284c7]"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#0284c7]"
                 />
               </div>
 
@@ -983,7 +876,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Espécie */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-2">Espécie *</label>
                 <div className="flex gap-2">
@@ -992,10 +884,10 @@ export default function App() {
                       key={esp}
                       type="button"
                       onClick={() => setEspecie(esp)}
-                      className={`flex-1 py-2.5 rounded-full text-xs font-semibold transition-all border ${
+                      className={`flex-1 py-2.5 rounded-full text-xs font-semibold border transition-all ${
                         especie === esp 
-                          ? 'bg-[#0284c7] text-white border-[#0284c7] shadow-sm' 
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                          ? 'bg-[#0284c7] text-white border-[#0284c7]' 
+                          : 'bg-white text-gray-600 border-gray-200'
                       }`}
                     >
                       {esp}
@@ -1019,7 +911,6 @@ export default function App() {
 
             <hr className="border-gray-100" />
 
-            {/* SEÇÃO PROCEDIMENTO */}
             <div className="space-y-4">
               <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">PROCEDIMENTO</span>
 
@@ -1035,32 +926,26 @@ export default function App() {
                 />
               </div>
 
-              {/* Complexidade */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-2">Complexidade *</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {['Baixa', 'Média', 'Alta', 'Emergência'].map((c) => (
+                  {['Baixa', 'Média', 'Alta', 'Emergência'].map((comp) => (
                     <button
-                      key={c}
+                      key={comp}
                       type="button"
-                      onClick={() => setComplexidade(c)}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition-all ${
-                        complexidade === c
-                          ? 'bg-sky-50 text-[#0284c7] border-[#0284c7] font-bold shadow-sm'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      onClick={() => setComplexidade(comp)}
+                      className={`py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                        complexidade === comp 
+                          ? 'bg-[#0284c7] text-white border-[#0284c7]' 
+                          : 'bg-white text-gray-600 border-gray-200'
                       }`}
                     >
-                      {c === 'Baixa' && '🟢 '}
-                      {c === 'Média' && '🔵 '}
-                      {c === 'Alta' && '🟠 '}
-                      {c === 'Emergência' && '🔴 '}
-                      {c}
+                      {comp}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Clínica */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">Clínica / local *</label>
                 <div className="flex gap-2">
@@ -1076,14 +961,13 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setAbaAtiva('clinicas')}
-                    className="w-12 border border-gray-200 rounded-xl flex items-center justify-center text-[#0284c7] hover:bg-sky-50"
+                    className="w-12 border border-gray-200 rounded-xl flex items-center justify-center text-[#0284c7]"
                   >
                     <Plus className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              {/* Cirurgião */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">Cirurgião *</label>
                 <div className="flex gap-2">
@@ -1099,7 +983,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setAbaAtiva('cirurgioes')}
-                    className="w-12 border border-gray-200 rounded-xl flex items-center justify-center text-[#0284c7] hover:bg-sky-50"
+                    className="w-12 border border-gray-200 rounded-xl flex items-center justify-center text-[#0284c7]"
                   >
                     <Plus className="w-5 h-5" />
                   </button>
@@ -1109,7 +993,6 @@ export default function App() {
 
             <hr className="border-gray-100" />
 
-            {/* SEÇÃO PAGAMENTO */}
             <div className="space-y-4">
               <span className="text-xs font-bold tracking-wider text-gray-400 uppercase">PAGAMENTO</span>
 
@@ -1126,7 +1009,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Status */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-2">Status *</label>
                 <div className="flex gap-2">
@@ -1137,8 +1019,8 @@ export default function App() {
                       onClick={() => setStatusPgto(st)}
                       className={`flex-1 py-2.5 rounded-full text-xs font-semibold border transition-all ${
                         statusPgto === st
-                          ? 'bg-[#0284c7] text-white border-[#0284c7] shadow-sm'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                          ? 'bg-[#0284c7] text-white border-[#0284c7]'
+                          : 'bg-white text-gray-600 border-gray-200'
                       }`}
                     >
                       {st}
@@ -1147,7 +1029,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Métodos de Pagamento */}
               {statusPgto === 'Pago' && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-2">Método de pagamento *</label>
@@ -1157,10 +1038,10 @@ export default function App() {
                         key={metodo}
                         type="button"
                         onClick={() => setFormaPgto(metodo)}
-                        className={`px-3.5 py-2 rounded-full text-xs font-semibold border transition-all ${
+                        className={`px-4 py-2.5 rounded-full text-xs font-semibold border transition-all ${
                           formaPgto === metodo
-                            ? 'bg-[#0284c7] text-white border-[#0284c7] shadow-sm'
-                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                            ? 'bg-[#0284c7] text-white border-[#0284c7]'
+                            : 'bg-white text-gray-600 border-gray-200'
                         }`}
                       >
                         {metodo}
@@ -1185,14 +1066,14 @@ export default function App() {
             <button
               type="submit"
               disabled={salvando}
-              className="w-full bg-[#0284c7] text-white py-4 rounded-2xl font-bold text-sm hover:bg-sky-700 transition-colors shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2"
+              className="w-full bg-[#0284c7] text-white py-4 rounded-2xl font-bold text-sm shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2"
             >
               {salvando ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Salvar registro'}
             </button>
           </form>
         )}
 
-        {/* ABA: CLÍNICAS */}
+        {/* VIEW: CLÍNICAS */}
         {abaAtiva === 'clinicas' && (
           <div className="space-y-4">
             <form onSubmit={guardarClinica} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
@@ -1224,7 +1105,7 @@ export default function App() {
                     {clinicaEditandoId === c.id ? (
                       <div className="flex gap-2 w-full">
                         <input type="text" value={nomeClinicaEditado} onChange={(e) => setNomeClinicaEditado(e.target.value)} className="border rounded-lg p-1 text-xs flex-1" />
-                        <button onClick={() => salvarEdicaoClinica(c.id)} className="text-emerald-600"><CheckCircle2 className="w-4 h-4" /></button>
+                        <button onClick={() => salvarEdicaoClinica(c.id)} className="text-emerald-600"><Check className="w-4 h-4" /></button>
                       </div>
                     ) : (
                       <>
@@ -1242,7 +1123,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA: CIRURGIÕES */}
+        {/* VIEW: CIRURGIÕES */}
         {abaAtiva === 'cirurgioes' && (
           <div className="space-y-4">
             <form onSubmit={guardarCirurgiao} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
@@ -1274,7 +1155,7 @@ export default function App() {
                     {cirurgiaoEditandoId === c.id ? (
                       <div className="flex gap-2 w-full">
                         <input type="text" value={nomeCirurgiaoEditado} onChange={(e) => setNomeCirurgiaoEditado(e.target.value)} className="border rounded-lg p-1 text-xs flex-1" />
-                        <button onClick={() => salvarEdicaoCirurgiao(c.id)} className="text-emerald-600"><CheckCircle2 className="w-4 h-4" /></button>
+                        <button onClick={() => salvarEdicaoCirurgiao(c.id)} className="text-emerald-600"><Check className="w-4 h-4" /></button>
                       </div>
                     ) : (
                       <>
@@ -1292,47 +1173,37 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA: RELATÓRIOS */}
+        {/* VIEW: DASHBOARD / RELATÓRIOS */}
         {abaAtiva === 'dashboard' && (
           <div className="space-y-4">
             
-            {/* Gráfico Drill Down por Período */}
+            {/* Gráfico Drill Down */}
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-[#0284c7]" /> Faturamento por Período
-                  </h2>
-                  <p className="text-xs text-gray-500 font-semibold mt-1">
-                    Total exibido: <strong className="text-gray-900">R$ {dadosGraficoDrill.totalPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-                  </p>
-                </div>
+              <div className="flex justify-between items-center">
+                <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-[#0284c7]" /> Faturamento
+                </h2>
                 {(escopoGrafico || nivelDrill !== 'ano') && (
-                  <button 
-                    onClick={() => { setEscopoGrafico(null); setNivelDrill('ano'); }} 
-                    className="text-xs text-[#0284c7] font-bold bg-sky-50 px-2.5 py-1.5 rounded-xl border border-sky-100 flex items-center gap-1"
-                  >
+                  <button onClick={() => { setEscopoGrafico(null); setNivelDrill('ano'); }} className="text-xs text-[#0284c7] font-semibold flex items-center gap-1">
                     <ChevronLeft className="w-4 h-4" /> Resetar
                   </button>
                 )}
               </div>
 
-              {/* Níveis do Gráfico */}
               <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
                 {(['ano', 'mes', 'semana', 'dia'] as const).map(n => (
                   <button
                     key={n}
                     onClick={() => setNivelDrill(n)}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${nivelDrill === n ? 'bg-white text-[#0284c7] shadow-sm' : 'text-gray-500'}`}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg ${nivelDrill === n ? 'bg-white text-[#0284c7] shadow-sm' : 'text-gray-500'}`}
                   >
-                    {({ ano: 'Ano', mes: 'Mês', semana: 'Semana', dia: 'Dia' })[n]}
+                    {n.toUpperCase()}
                   </button>
                 ))}
               </div>
 
-              {/* Desenho do Gráfico */}
-              <div ref={scrollGraficoRef} className="overflow-x-auto pt-4 pb-2 bg-gray-50/50 rounded-2xl p-3 border border-gray-100">
-                <div className="flex items-end gap-3 min-w-max h-48 border-b border-gray-200 pb-2">
+              <div ref={scrollGraficoRef} className="overflow-x-auto pt-4 pb-2">
+                <div className="flex items-end gap-3 min-w-max h-48 border-b border-gray-100 pb-2">
                   {dadosGraficoDrill.chavesOrdenadas.map(ch => {
                     const total = dadosGraficoDrill.totaisPorGrupo[ch] || 0;
                     const alt = (total / dadosGraficoDrill.maiorValorTotal) * 140;
@@ -1347,14 +1218,12 @@ export default function App() {
                         }}
                         className="w-12 flex flex-col items-center cursor-pointer group"
                       >
-                        <span className="text-[10px] font-bold text-gray-500 mb-1">
-                          {total > 0 ? `R$${total > 1000 ? `${(total/1000).toFixed(1)}k` : total}` : ''}
-                        </span>
+                        <span className="text-[10px] font-bold text-gray-500 mb-1">R${total > 1000 ? `${(total/1000).toFixed(1)}k` : total}</span>
                         <div 
-                          style={{ height: `${Math.max(alt, 4)}px` }} 
-                          className={`w-8 rounded-t-lg transition-all shadow-sm ${total > 0 ? 'bg-[#0284c7] group-hover:bg-sky-700' : 'bg-gray-200/60'}`}
+                          style={{ height: `${Math.max(alt, 6)}px` }} 
+                          className="w-8 bg-[#0284c7] rounded-t-lg group-hover:bg-sky-700 transition-all"
                         />
-                        <span className="text-[10px] font-semibold text-gray-600 mt-2 text-center">{dadosGraficoDrill.formatarRotulo(ch)}</span>
+                        <span className="text-[10px] font-semibold text-gray-600 mt-2">{dadosGraficoDrill.formatarRotulo(ch)}</span>
                       </div>
                     );
                   })}
@@ -1362,212 +1231,120 @@ export default function App() {
               </div>
             </div>
 
-            {/* Faturamento e Quitação */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Faturamento Bruto</span>
-                <p className="text-xl font-black text-gray-900">
-                  R$ {metricasDashboard.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[11px] text-[#0284c7] font-semibold">{metricasDashboard.quantidade} procedimento(s)</p>
-              </div>
+            {/* Gráfico Rosca por Clínica */}
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+              <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-[#0284c7]" /> Faturamento por Clínica
+              </h2>
 
-              <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Taxa de Quitação</span>
-                <p className="text-xl font-black text-emerald-600">
-                  {metricasDashboard.taxaRecebimento.toFixed(1)}%
-                </p>
-                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
-                  <div style={{ width: `${metricasDashboard.taxaRecebimento}%` }} className="h-full bg-emerald-500" />
+              <div className="relative w-64 h-64 mx-auto">
+                <svg width="256" height="256" viewBox="0 0 280 280" className="rotate-[-90deg]">
+                  {metricasDashboard.fatiasSVG.map(fatia => (
+                    <path
+                      key={fatia.id}
+                      d={fatia.pathData}
+                      fill="none"
+                      stroke={fatia.cor}
+                      strokeWidth={fatiaHover?.id === fatia.id ? "42" : "34"}
+                      className="cursor-pointer transition-all duration-200"
+                      onMouseEnter={() => setFatiaHover(fatia)}
+                      onMouseLeave={() => setFatiaHover(null)}
+                    />
+                  ))}
+                </svg>
+
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                  {fatiaHover ? (
+                    <>
+                      <span className="text-xs font-bold text-gray-400 uppercase">{fatiaHover.nome}</span>
+                      <span className="text-lg font-black text-gray-900">R$ {fatiaHover.valor.toLocaleString('pt-BR')}</span>
+                      <span className="text-xs font-bold text-[#0284c7]">{fatiaHover.porcentagem.toFixed(1)}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-bold text-gray-400 uppercase">Total</span>
+                      <span className="text-xl font-black text-gray-900">R$ {metricasDashboard.totalGeral.toLocaleString('pt-BR')}</span>
+                    </>
+                  )}
                 </div>
               </div>
-            </div>
 
-            {/* Faturamento por Clínica (Gráfico de Rosca) */}
-            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-[#0284c7]" /> Faturamento por Clínica
-              </h3>
-
-              {metricasDashboard.fatiasSVG.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-4">Nenhum procedimento no período selecionado.</p>
-              ) : (
-                <div className="space-y-4">
-                  <div className="relative w-64 h-64 mx-auto">
-                    <svg width="256" height="256" viewBox="0 0 280 280" className="-rotate-90 overflow-visible">
-                      {metricasDashboard.fatiasSVG.map((fatia) => (
-                        <path
-                          key={fatia.id}
-                          d={fatia.pathData}
-                          fill="none"
-                          stroke={fatia.cor}
-                          strokeWidth={fatiaHover?.id === fatia.id ? "42" : "34"}
-                          className="cursor-pointer transition-all duration-200"
-                          style={{ opacity: fatiaHover && fatiaHover.id !== fatia.id ? 0.35 : 1 }}
-                          onMouseEnter={() => setFatiaHover(fatia)}
-                          onMouseLeave={() => setFatiaHover(null)}
-                        />
-                      ))}
-                    </svg>
-
-                    <div className="absolute inset-0 m-auto w-36 h-36 bg-white rounded-full shadow-inner flex flex-col items-center justify-center p-2 text-center pointer-events-none">
-                      {fatiaHover ? (
-                        <>
-                          <span className="text-[10px] font-bold uppercase truncate max-w-[110px]" style={{ color: fatiaHover.cor }}>
-                            {fatiaHover.nome}
-                          </span>
-                          <span className="text-sm font-black text-gray-900">
-                            R$ {fatiaHover.valor.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                          </span>
-                          <span className="text-[10px] font-bold text-gray-500">
-                            {fatiaHover.porcentagem.toFixed(1)}%
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase">Total</span>
-                          <span className="text-base font-black text-gray-900">
-                            R$ {metricasDashboard.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Tabela de Legendas Alinhada */}
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-gray-400 px-3 pb-1 border-b border-gray-100">
-                      <span className="col-span-6">Clínica</span>
-                      <span className="col-span-2 text-center">%</span>
-                      <span className="col-span-4 text-right">Total (R$)</span>
-                    </div>
-
-                    {metricasDashboard.fatiasSVG.map(fatia => (
-                      <div 
-                        key={fatia.id} 
-                        onMouseEnter={() => setFatiaHover(fatia)}
-                        onMouseLeave={() => setFatiaHover(null)}
-                        className={`grid grid-cols-12 gap-2 items-center text-xs px-3 py-2.5 rounded-xl border transition-all cursor-pointer ${
-                          fatiaHover?.id === fatia.id ? 'bg-sky-50 border-sky-200' : 'bg-gray-50 border-gray-100'
-                        }`}
-                      >
-                        <span className="col-span-6 font-bold text-gray-700 flex items-center gap-2 truncate">
-                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: fatia.cor }} />
-                          <span className="truncate">{fatia.nome}</span>
-                        </span>
-                        <span className="col-span-2 text-center font-semibold text-gray-500">
-                          {fatia.porcentagem.toFixed(1)}%
-                        </span>
-                        <span className="col-span-4 text-right font-bold text-emerald-600 truncate">
-                          R$ {fatia.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Pendências por Clínica Detalhada */}
-            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-500" /> Pendências Financeiras
-                </h3>
-
-                {Object.keys(metricasDashboard.pendentesPorClinica).length > 0 && (
-                  <button
-                    onClick={() => copiarResumoWhatsApp(null)}
-                    className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-100 transition-colors shadow-sm self-start sm:self-auto"
+              {/* Tabela Alinhada com Grid */}
+              <div className="space-y-1.5 border-t border-gray-100 pt-3 text-xs font-semibold">
+                {metricasDashboard.fatiasSVG.map(fatia => (
+                  <div 
+                    key={fatia.id} 
+                    className="grid grid-cols-12 items-center py-1.5 px-2 rounded-xl hover:bg-sky-50 transition-colors"
+                    onMouseEnter={() => setFatiaHover(fatia)}
+                    onMouseLeave={() => setFatiaHover(null)}
                   >
-                    {copiadoWhatsApp ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Copiado para WhatsApp!
-                      </>
-                    ) : (
-                      <>
-                        <Share2 className="w-3.5 h-3.5 text-emerald-600" /> Copiar Tudo p/ WhatsApp
-                      </>
-                    )}
-                  </button>
-                )}
+                    <div className="col-span-6 flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: fatia.cor }} />
+                      <span className="text-gray-700 truncate">{fatia.nome}</span>
+                    </div>
+                    <div className="col-span-2 text-center text-gray-400 font-bold">
+                      {fatia.porcentagem.toFixed(1)}%
+                    </div>
+                    <div className="col-span-4 text-right font-bold text-gray-900">
+                      R$ {fatia.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pendências Financeiras */}
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-600" /> Pendências Financeiras
+                </h2>
+                <button
+                  onClick={() => copiarWhatsAppPendencias()}
+                  className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl hover:bg-emerald-700 transition-colors"
+                >
+                  Copiar p/ WhatsApp
+                </button>
               </div>
 
-              {Object.keys(metricasDashboard.pendentesPorClinica).length === 0 ? (
-                <div className="p-3 text-center bg-emerald-50 text-emerald-700 rounded-2xl text-xs font-semibold">
-                  🎉 Nenhuma pendência financeira no momento!
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-gray-400 px-3 pb-1 border-b border-gray-100">
-                    <span className="col-span-5">Clínica</span>
-                    <span className="col-span-3 text-center">Pendentes</span>
-                    <span className="col-span-4 text-right">Retido (R$)</span>
-                  </div>
+              <div className="space-y-2 text-xs">
+                {Object.entries(metricasDashboard.pendentesPorClinica).map(([cNome, dados]) => (
+                  <div key={cNome} className="border border-gray-100 rounded-2xl overflow-hidden">
+                    <div 
+                      onClick={() => setClinicaExpandidaPendencia(clinicaExpandidaPendencia === cNome ? null : cNome)}
+                      className="grid grid-cols-12 items-center p-3 bg-gray-50 cursor-pointer hover:bg-amber-50/50"
+                    >
+                      <div className="col-span-6 font-bold text-gray-800">{cNome}</div>
+                      <div className="col-span-2 text-center text-amber-700 font-bold">{dados.qtd} pend.</div>
+                      <div className="col-span-4 text-right font-black text-red-600">
+                        R$ {dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
 
-                  {Object.entries(metricasDashboard.pendentesPorClinica).map(([cNome, dados]) => {
-                    const estaExpandida = clinicaPendenteExpandida === cNome;
-                    return (
-                      <div key={cNome} className="rounded-2xl border border-amber-100 bg-amber-50/30 overflow-hidden transition-all">
-                        <div 
-                          onClick={() => setClinicaPendenteExpandida(estaExpandida ? null : cNome)}
-                          className="grid grid-cols-12 gap-2 items-center text-xs px-3 py-3 cursor-pointer hover:bg-amber-100/40 transition-colors"
-                        >
-                          <span className="col-span-5 font-bold text-gray-800 flex items-center gap-1.5 truncate">
-                            {estaExpandida ? <ChevronUp className="w-4 h-4 text-amber-600 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-amber-600 flex-shrink-0" />}
-                            <span className="truncate">{cNome}</span>
-                          </span>
-                          
-                          <span className="col-span-3 text-center">
-                            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold text-[11px]">
-                              {dados.qtd} ficha(s)
-                            </span>
-                          </span>
-
-                          <span className="col-span-4 text-right font-bold text-red-600">
-                            R$ {dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-
-                        {estaExpandida && (
-                          <div className="bg-white border-t border-amber-100 p-3 space-y-2.5">
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                              <span className="text-[11px] font-bold text-gray-500 uppercase">Detalhamento das Fichas</span>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); copiarResumoWhatsApp(cNome); }}
-                                className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                    {clinicaExpandidaPendencia === cNome && (
+                      <div className="p-3 bg-white space-y-2 border-t border-gray-100">
+                        {dados.fichas.map(f => (
+                          <div key={f.id} className="flex justify-between items-center text-[11px] border-b pb-1.5 last:border-0">
+                            <div>
+                              <p className="font-bold text-gray-800">{f.paciente} <span className="font-normal text-gray-400">({f.especie})</span></p>
+                              <p className="text-gray-500">{f.procedimento} · {formatarDataBR(f.dataProc)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-gray-900">R$ {f.valor}</p>
+                              <button 
+                                onClick={() => abrirModalQuitacao(f.id, f.paciente)}
+                                className="text-[10px] text-[#0284c7] font-bold underline"
                               >
-                                <Copy className="w-3 h-3" /> Copiar Clínica
+                                Quitar
                               </button>
                             </div>
-
-                            <div className="space-y-2">
-                              {dados.fichas.map(f => (
-                                <div key={f.id} className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs flex justify-between items-center">
-                                  <div className="space-y-0.5">
-                                    <p className="font-bold text-gray-900">{f.paciente} <span className="font-semibold text-gray-500">({f.especie || 'Canino'})</span></p>
-                                    <p className="text-[11px] text-gray-600">{f.procedimento || 'Anestesia'} · <span className="text-gray-400">Tutor:</span> {f.tutor || '—'}</p>
-                                    <p className="text-[10px] text-[#0284c7] font-semibold">{formatarDataBR(f.dataProc)}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="font-black text-gray-900 text-sm block">R$ {f.valor || '0,00'}</span>
-                                    <button
-                                      onClick={() => abrirModalQuitacao(f.id, f.paciente)}
-                                      className="mt-1 bg-[#0284c7] text-white px-2.5 py-1 rounded-lg text-[10px] font-bold hover:bg-sky-700 shadow-sm"
-                                    >
-                                      Quitar
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
                           </div>
-                        )}
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Atendimentos por Espécie */}
@@ -1577,11 +1354,11 @@ export default function App() {
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-sky-50 border border-sky-100 p-4 rounded-2xl">
-                  <p className="text-xs font-bold text-sky-800">CANINOS</p>
+                  <p className="text-xs font-bold text-sky-800 uppercase">CANINOS</p>
                   <p className="text-2xl font-black text-[#0284c7]">{metricasDashboard.caes}</p>
                 </div>
                 <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl">
-                  <p className="text-xs font-bold text-indigo-800">FELINOS</p>
+                  <p className="text-xs font-bold text-indigo-800 uppercase">FELINOS</p>
                   <p className="text-2xl font-black text-indigo-600">{metricasDashboard.gatos}</p>
                 </div>
               </div>
@@ -1595,9 +1372,9 @@ export default function App() {
       {/* Modal Quitação */}
       {modalQuitacao && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl text-left">
             <h3 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-[#0284c7]" /> Quitar Procedimento
+              <CheckCircle2 className="w-5 h-5 text-[#0284c7]" /> Quitar Procedimento
             </h3>
             <p className="text-xs text-gray-500">Paciente: <strong className="text-gray-800">{modalQuitacao.paciente}</strong></p>
             
@@ -1614,6 +1391,16 @@ export default function App() {
                 <option value="Crédito (parcelado)">Crédito (parcelado)</option>
                 <option value="Cartão de débito">Cartão de débito</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Data do Pagamento</label>
+              <input 
+                type="date"
+                value={quitDataPgto}
+                onChange={(e) => setQuitDataPgto(e.target.value)}
+                className="w-full border rounded-xl p-3 text-sm"
+              />
             </div>
 
             <div className="flex gap-2">
@@ -1644,7 +1431,7 @@ export default function App() {
             <span className="text-[10px] font-semibold">Clínicas</span>
           </button>
 
-          {/* Botão Central + */}
+          {/* Botão Central */}
           <div className="relative -top-5">
             <button
               onClick={() => setAbaAtiva('formulario')}
