@@ -64,13 +64,19 @@ export default function App() {
   const [abaAtiva, setAbaAtiva] = useState<'historico' | 'formulario' | 'clinicas' | 'cirurgioes' | 'dashboard'>('historico');
   const [modoVisualizacao, setModoVisualizacao] = useState<'cards' | 'tabela'>('cards');
 
-  // Filtros
+  // Filtros Histórico
   const [buscaHistorico, setBuscaHistorico] = useState('');
   const [filtroClinicaHistorico, setFiltroClinicaHistorico] = useState('');
   const [filtroStatusHistorico, setFiltroStatusHistorico] = useState('');
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
   const [filtroDataFim, setFiltroDataFim] = useState('');
   const [ordenacaoHistorico, setOrdenacaoHistorico] = useState<'data-desc' | 'data-asc' | 'paciente-asc' | 'paciente-desc'>('data-desc');
+
+  // Filtros Dashboard / Relatórios
+  const [relatorioClinica, setRelatorioClinica] = useState('');
+  const [relatorioStatus, setRelatorioStatus] = useState('');
+  const [relatorioDataInicio, setRelatorioDataInicio] = useState('');
+  const [relatorioDataFim, setRelatorioDataFim] = useState('');
 
   // Campos do Formulário
   const [dataProc, setDataProc] = useState(() => new Date().toISOString().slice(0, 10));
@@ -104,7 +110,7 @@ export default function App() {
   const [fichaEditandoId, setFichaEditandoId] = useState<string | null>(null);
   const [editFichaData, setEditFichaData] = useState<Partial<Registo>>({});
 
-  // Dashboard
+  // Dashboard Drill Down
   const [nivelDrill, setNivelDrill] = useState<'ano' | 'mes' | 'semana' | 'dia'>('mes');
   const [escopoGrafico, setEscopoGrafico] = useState<{ tipo: 'ano' | 'mes' | 'semana'; chave: string } | null>(null);
   const scrollGraficoRef = useRef<HTMLDivElement>(null);
@@ -285,6 +291,23 @@ export default function App() {
     });
   }, [registos, buscaHistorico, filtroClinicaHistorico, filtroStatusHistorico, filtroDataInicio, filtroDataFim, ordenacaoHistorico]);
 
+  // Registos Filtrados exclusivamente para a aba de Relatórios
+  const registosRelatorioFiltrados = useMemo(() => {
+    return registos.filter(item => {
+      const bateClinica = !relatorioClinica || item.local === relatorioClinica;
+      
+      let bateStatus = true;
+      if (relatorioStatus === 'pago') bateStatus = Boolean(item.dataPgto);
+      if (relatorioStatus === 'pendente') bateStatus = !item.dataPgto;
+
+      let batePeriodo = true;
+      if (relatorioDataInicio && item.dataProc < relatorioDataInicio) batePeriodo = false;
+      if (relatorioDataFim && item.dataProc > relatorioDataFim) batePeriodo = false;
+
+      return bateClinica && bateStatus && batePeriodo;
+    });
+  }, [registos, relatorioClinica, relatorioStatus, relatorioDataInicio, relatorioDataFim]);
+
   const exportarCSV = () => {
     if (registosFiltradosEOrdenados.length === 0) return;
     const cabecalho = ["Data Procedimento", "Paciente", "Espécie", "Peso (kg)", "Procedimento", "Complexidade", "Tutor", "Local / Clínica", "Cirurgião", "Valor (R$)", "Forma Pagamento", "Data Pagamento", "Observações"];
@@ -395,7 +418,7 @@ export default function App() {
     const mapaCoresClinicas: { [nome: string]: string } = {};
     clinicas.forEach((c, idx) => { mapaCoresClinicas[c.nome] = PALETA_CORES[idx % PALETA_CORES.length]; });
 
-    const filtrados = registos.filter(r => {
+    const filtrados = registosRelatorioFiltrados.filter(r => {
       if (!r.dataProc) return false;
       if (!escopoGrafico) return true;
       if (escopoGrafico.tipo === 'ano') return getAnoFromData(r.dataProc) === escopoGrafico.chave;
@@ -460,14 +483,14 @@ export default function App() {
       chavesOrdenadas, grupos, totaisPorGrupo, maiorValorTotal, totalPeriodo,
       clinicasPresentes: Array.from(clinicasPresentes), formatarRotulo, mapaCoresClinicas
     };
-  }, [registos, clinicas, nivelDrill, escopoGrafico]);
+  }, [registosRelatorioFiltrados, clinicas, nivelDrill, escopoGrafico]);
 
   const metricasDashboard = useMemo(() => {
     let totalGeral = 0, totalPago = 0, totalPendente = 0, caes = 0, gatos = 0;
     const porClinica: { [k: string]: number } = {};
     const pendentesPorClinica: { [k: string]: { valor: number, qtd: number, fichas: Registo[] } } = {};
 
-    registos.forEach(item => {
+    registosRelatorioFiltrados.forEach(item => {
       const v = item.valor ? parseFloat(item.valor.replace('.', '').replace(',', '.')) : 0;
       totalGeral += v;
       const cNome = item.local || 'Não informada';
@@ -521,10 +544,10 @@ export default function App() {
     });
 
     return {
-      quantidade: registos.length, totalGeral, totalPago, totalPendente,
+      quantidade: registosRelatorioFiltrados.length, totalGeral, totalPago, totalPendente,
       taxaRecebimento, caes, gatos, porClinica, fatiasSVG, pendentesPorClinica
     };
-  }, [registos]);
+  }, [registosRelatorioFiltrados]);
 
   const copiarWhatsAppPendencias = (clinicaFiltro?: string) => {
     let texto = `📋 *PENDÊNCIAS FINANCEIRAS - ANESTVET*\n\n`;
@@ -548,6 +571,13 @@ export default function App() {
     }).catch(() => {
       alert("Não foi possível copiar automaticamente. Selecione e copie o texto manualmente.");
     });
+  };
+
+  const limparFiltrosRelatorio = () => {
+    setRelatorioClinica('');
+    setRelatorioStatus('');
+    setRelatorioDataInicio('');
+    setRelatorioDataFim('');
   };
 
   return (
@@ -1177,6 +1207,82 @@ export default function App() {
         {abaAtiva === 'dashboard' && (
           <div className="space-y-4">
             
+            {/* PAINEL DE FILTROS DO RELATÓRIO */}
+            <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-3">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                  <Filter className="w-4 h-4 text-[#0284c7]" /> Filtros do Relatório
+                </span>
+                {(relatorioClinica || relatorioStatus || relatorioDataInicio || relatorioDataFim) && (
+                  <button 
+                    onClick={limparFiltrosRelatorio}
+                    className="text-[11px] font-bold text-red-500 hover:underline"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro Status (Todos / Pago / Pendente) */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Status de Pagamento</label>
+                <div className="flex gap-1.5">
+                  {[
+                    { id: '', label: 'Todos' },
+                    { id: 'pago', label: 'Pago' },
+                    { id: 'pendente', label: 'Pendente' }
+                  ].map(st => (
+                    <button
+                      key={st.id}
+                      onClick={() => setRelatorioStatus(st.id)}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                        relatorioStatus === st.id
+                          ? 'bg-[#0284c7] text-white border-[#0284c7]'
+                          : 'bg-gray-50 text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Filtro de Clínica */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Clínica / Local</label>
+                <select 
+                  value={relatorioClinica} 
+                  onChange={(e) => setRelatorioClinica(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-medium text-gray-700 outline-none focus:border-[#0284c7]"
+                >
+                  <option value="">Todas as Clínicas</option>
+                  {clinicas.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                </select>
+              </div>
+
+              {/* Filtro de Período (Data Início / Fim) */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Período De</label>
+                  <input
+                    type="date"
+                    value={relatorioDataInicio}
+                    onChange={(e) => setRelatorioDataInicio(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:border-[#0284c7]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Período Até</label>
+                  <input
+                    type="date"
+                    value={relatorioDataFim}
+                    onChange={(e) => setRelatorioDataFim(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:border-[#0284c7]"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Gráfico Drill Down */}
             <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
               <div className="flex justify-between items-center">
