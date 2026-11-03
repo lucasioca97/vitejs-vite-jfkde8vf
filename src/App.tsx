@@ -36,7 +36,7 @@ function App() {
   const [salvandoClinica, setSalvandoClinica] = useState(false);
   const [salvandoCirurgiao, setSalvandoCirurgiao] = useState(false);
   
-  const [abaAtiva, setAbaAtiva] = useState<'formulario' | 'historico' | 'clinicas' | 'cirurgioes' | 'dashboard'>('historico');
+  const [abaAtiva, setAbaAtiva] = useState<'inicio' | 'formulario' | 'historico' | 'cadastros' | 'dashboard'>('inicio');
 
   // Filtros e Ordenação no Histórico
   const [buscaHistorico, setBuscaHistorico] = useState('');
@@ -677,11 +677,11 @@ ${ano}`;
   };
   },[registos, tipoPeriodo, mesFiltro, anoFiltro, dataInicioFiltro, dataFimFiltro]);
   return (
-    <div className="min-h-screen bg-gray-50 font-sans pb-24">
+    <div className="min-h-screen bg-slate-50 font-sans pb-28">
       {/* Header Superior Tailwind */}
       <header className="bg-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 border-b border-gray-100 shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="bg-teal-400 p-2 rounded-full text-white">
+          <div className="bg-sky-400 p-2 rounded-full text-white">
             <Syringe className="w-5 h-5" />
           </div>
           <span className="text-xl font-bold text-gray-900">AnestVet</span>
@@ -691,8 +691,45 @@ ${ano}`;
         </button>
       </header>
 
-      <main className="max-w-4xl mx-auto">
+      <main className="max-w-4xl mx-auto pb-8">
         
+        {/* Início */}
+        {abaAtiva === 'inicio' && (
+          <div className="px-4 pt-6 space-y-5">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Início</h1>
+              <p className="text-gray-500 mt-1">Resumo geral do AnestVet</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white p-4 rounded-3xl border border-gray-200 shadow-sm">
+                <p className="text-xs font-semibold text-gray-500">Registros</p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">{registos.length}</p>
+                <p className="text-xs text-gray-400 mt-1">Procedimentos cadastrados</p>
+              </div>
+              <div className="bg-white p-4 rounded-3xl border border-gray-200 shadow-sm">
+                <p className="text-xs font-semibold text-gray-500">Pendentes</p>
+                <p className="text-2xl font-bold text-amber-600 mt-2">{registos.filter(r => !r.dataPgto).length}</p>
+                <p className="text-xs text-gray-400 mt-1">Aguardando pagamento</p>
+              </div>
+              <div className="bg-white p-4 rounded-3xl border border-gray-200 shadow-sm">
+                <p className="text-xs font-semibold text-gray-500">Clínicas</p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">{clinicas.length}</p>
+                <p className="text-xs text-gray-400 mt-1">Cadastradas</p>
+              </div>
+              <div className="bg-white p-4 rounded-3xl border border-gray-200 shadow-sm">
+                <p className="text-xs font-semibold text-gray-500">Cirurgiões</p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">{cirurgioes.length}</p>
+                <p className="text-xs text-gray-400 mt-1">Cadastrados</p>
+              </div>
+            </div>
+            <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-sm">
+              <p className="text-sm font-semibold text-gray-500">Faturamento registrado</p>
+              <p className="text-2xl font-bold text-sky-700 mt-1">R$ {registos.reduce((total, r) => total + (r.valor ? parseFloat(String(r.valor).replace(/\./g, '').replace(',', '.')) || 0 : 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <button onClick={() => setAbaAtiva('historico')} className="mt-4 text-sm font-semibold text-sky-700">Ver registros <span aria-hidden="true">→</span></button>
+            </div>
+          </div>
+        )}
+
         {/* Formulário */}
         {abaAtiva === 'formulario' && (
           <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
@@ -721,7 +758,7 @@ ${ano}`;
                       type="text"
                       value={fichaEditandoId ? editFichaData.paciente || '' : paciente}
                       onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, paciente: e.target.value}) : setPaciente(e.target.value)}
-                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                     />
                   </div>
 
@@ -732,7 +769,7 @@ ${ano}`;
                       type="text"
                       value={fichaEditandoId ? editFichaData.tutor || '' : tutor}
                       onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, tutor: e.target.value}) : setTutor(e.target.value)}
-                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                     />
                   </div>
 
@@ -746,8 +783,8 @@ ${ano}`;
                           onClick={() => fichaEditandoId ? setEditFichaData({...editFichaData, especie: opcao}) : setEspecie(opcao)}
                           className={`px-5 py-2.5 rounded-full text-sm font-medium border transition-colors ${
                             (fichaEditandoId ? editFichaData.especie : especie) === opcao 
-                              ? 'bg-teal-600 border-teal-600 text-white' 
-                              : 'bg-white border-gray-200 text-gray-700 hover:border-teal-600'
+                              ? 'bg-sky-600 border-sky-600 text-white' 
+                              : 'bg-white border-gray-200 text-gray-700 hover:border-sky-600'
                           }`}
                         >
                           {opcao}
@@ -756,25 +793,14 @@ ${ano}`;
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Raça</label>
-                      <input 
-                        type="text"
-                        value={fichaEditandoId ? editFichaData.raca || '' : raca}
-                        onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, raca: e.target.value}) : setRaca(e.target.value)}
-                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Peso</label>
-                      <input 
-                        type="text"
-                        value={fichaEditandoId ? editFichaData.peso || '' : peso}
-                        onChange={e => handlePesoChange(e.target.value, !!fichaEditandoId)}
-                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Peso</label>
+                    <input
+                      type="text"
+                      value={fichaEditandoId ? editFichaData.peso || '' : peso}
+                      onChange={e => handlePesoChange(e.target.value, !!fichaEditandoId)}
+                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
+                    />
                   </div>
                 </section>
 
@@ -789,7 +815,7 @@ ${ano}`;
                       type="text"
                       value={fichaEditandoId ? editFichaData.procedimento || '' : procedimento}
                       onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, procedimento: e.target.value}) : setProcedimento(e.target.value)}
-                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                     />
                   </div>
                   
@@ -799,7 +825,7 @@ ${ano}`;
                       <select 
                         value={fichaEditandoId ? editFichaData.complexidade || 'Média' : complexidade}
                         onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, complexidade: e.target.value}) : setComplexidade(e.target.value)}
-                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 bg-white"
+                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 bg-white"
                       >
                         <option value="Baixa">🟢 Baixa</option>
                         <option value="Média">🔵 Média</option>
@@ -815,13 +841,13 @@ ${ano}`;
                         required
                         value={fichaEditandoId ? editFichaData.local || '' : local}
                         onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, local: e.target.value}) : setLocal(e.target.value)}
-                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 bg-white"
+                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 bg-white"
                       >
                         <option value="">Selecione...</option>
                         {clinicas.map((c) => (<option key={c.id} value={c.nome}>{c.nome}</option>))}
                       </select>
                     </div>
-                    <button type="button" onClick={() => setAbaAtiva('clinicas')} className="p-3.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">
+                    <button type="button" onClick={() => setAbaAtiva('cadastros')} className="p-3.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">
                       <Plus className="w-5 h-5" />
                     </button>
                   </div>
@@ -833,13 +859,13 @@ ${ano}`;
                         required
                         value={fichaEditandoId ? editFichaData.cirurgiao || '' : cirurgiao}
                         onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, cirurgiao: e.target.value}) : setCirurgiao(e.target.value)}
-                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 bg-white"
+                        className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 bg-white"
                       >
                         <option value="">Selecione...</option>
                         {cirurgioes.map((c) => (<option key={c.id} value={c.nome}>{c.nome}</option>))}
                       </select>
                     </div>
-                    <button type="button" onClick={() => setAbaAtiva('cirurgioes')} className="p-3.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">
+                    <button type="button" onClick={() => setAbaAtiva('cadastros')} className="p-3.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">
                       <Plus className="w-5 h-5" />
                     </button>
                   </div>
@@ -851,7 +877,7 @@ ${ano}`;
                       type="date"
                       value={fichaEditandoId ? editFichaData.dataProc || '' : dataProc}
                       onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, dataProc: e.target.value}) : setDataProc(e.target.value)}
-                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                     />
                   </div>
                 </section>
@@ -868,7 +894,7 @@ ${ano}`;
                       inputMode="numeric"
                       value={fichaEditandoId ? editFichaData.valor || '' : valor}
                       onChange={e => handleValorChange(e.target.value, !!fichaEditandoId)}
-                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                     />
                   </div>
 
@@ -893,8 +919,8 @@ ${ano}`;
                                 }}
                                 className={`px-6 py-2.5 rounded-full text-sm font-medium border transition-colors ${
                                     selecionado
-                                    ? 'bg-teal-600 border-teal-600 text-white' 
-                                    : 'bg-white border-gray-200 text-gray-700 hover:border-teal-600'
+                                    ? 'bg-sky-600 border-sky-600 text-white' 
+                                    : 'bg-white border-gray-200 text-gray-700 hover:border-sky-600'
                                 }`}
                             >
                                 {opcao}
@@ -914,8 +940,8 @@ ${ano}`;
                           onClick={() => fichaEditandoId ? setEditFichaData({...editFichaData, formaPgto: opcao}) : setFormaPgto(opcao)}
                           className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
                             (fichaEditandoId ? editFichaData.formaPgto : formaPgto) === opcao 
-                              ? 'bg-teal-600 border-teal-600 text-white' 
-                              : 'bg-white border-gray-200 text-gray-700 hover:border-teal-600'
+                              ? 'bg-sky-600 border-sky-600 text-white' 
+                              : 'bg-white border-gray-200 text-gray-700 hover:border-sky-600'
                           }`}
                         >
                           {opcao}
@@ -930,7 +956,7 @@ ${ano}`;
                       rows={3}
                       value={fichaEditandoId ? editFichaData.observacoes || '' : observacoes}
                       onChange={e => fichaEditandoId ? setEditFichaData({...editFichaData, observacoes: e.target.value}) : setObservacoes(e.target.value)}
-                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 resize-none"
+                      className="w-full border border-gray-200 rounded-2xl p-3.5 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 resize-none"
                       placeholder="Protocolo anestésico, intercorrências, ASA..."
                     />
                   </div>
@@ -941,7 +967,7 @@ ${ano}`;
                   <button 
                     type="submit"
                     disabled={salvando}
-                    className="w-full bg-teal-600 text-white font-semibold rounded-2xl py-4 hover:bg-teal-700 transition-colors shadow-md shadow-teal-200 flex justify-center items-center"
+                    className="w-full bg-sky-600 text-white font-semibold rounded-2xl py-4 hover:bg-sky-700 transition-colors shadow-md shadow-sky-200 flex justify-center items-center"
                   >
                      {salvando ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                     Salvar alterações
@@ -971,7 +997,7 @@ ${ano}`;
                   <p className="text-gray-500">
                       {registosFiltradosEOrdenados.length} registro(s) · R$ {valorTotalHistorico.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </p>
-                  <button onClick={exportarCSV} className="text-teal-600 flex items-center gap-1 text-sm font-medium hover:text-teal-700">
+                  <button onClick={exportarCSV} className="text-sky-600 flex items-center gap-1 text-sm font-medium hover:text-sky-700">
                       <Download className="w-4 h-4" /> CSV
                   </button>
               </div>
@@ -985,7 +1011,7 @@ ${ano}`;
                   placeholder="Buscar paciente, tutor, cirurgia..."
                   value={buscaHistorico}
                   onChange={(e) => setBuscaHistorico(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                 />
               </div>
               <button className="p-3 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50">
@@ -1004,7 +1030,7 @@ ${ano}`;
                   <option value="pago">Pago</option>
                   <option value="pendente">Pendente</option>
                 </select>
-                <select value={ordenacaoHistorico} onChange={(e) => setOrdenacaoHistorico(e.target.value as any)} className="p-2 rounded-xl border border-gray-200 text-sm outline-none bg-white text-teal-600 font-medium">
+                <select value={ordenacaoHistorico} onChange={(e) => setOrdenacaoHistorico(e.target.value as any)} className="p-2 rounded-xl border border-gray-200 text-sm outline-none bg-white text-sky-600 font-medium">
                   <option value="data-desc">Data ↓</option>
                   <option value="data-asc">Data ↑</option>
                   <option value="paciente-asc">Paciente A-Z</option>
@@ -1019,18 +1045,18 @@ ${ano}`;
                 {registosFiltradosEOrdenados.map(registro => {
                     const isPago = !!registro.dataPgto;
                     return (
-                        <div key={registro.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                            <div className="flex justify-between items-start mb-2">
+                        <div key={registro.id} className="bg-white rounded-[28px] border border-gray-200 shadow-sm p-5">
+                            <div className="flex justify-between items-start gap-3 mb-2">
                                 <div>
                                     <h3 className="text-base text-gray-900">
                                         <span className="font-bold">{registro.paciente}</span>
                                         <span className="text-gray-500 text-sm ml-1">
-                                            · {registro.especie} {registro.raca && `, ${registro.raca}`} {registro.peso && `· ${registro.peso}kg`}
+                                            · {registro.especie} {registro.peso && `· ${registro.peso} kg`}
                                         </span>
                                     </h3>
                                     <p className="text-gray-700 text-sm mt-1">{registro.procedimento}</p>
                                 </div>
-                                <span className="font-semibold text-gray-900 whitespace-nowrap">
+                                <span className="font-bold text-gray-900 whitespace-nowrap text-lg">
                                     R$ {registro.valor || '0,00'}
                                 </span>
                             </div>
@@ -1047,9 +1073,9 @@ ${ano}`;
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-50">
+                            <div className="flex items-center justify-between gap-2 mt-5 pt-4 border-t border-gray-100">
                                 <div className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5 ${
-                                    isPago ? 'bg-teal-50 text-teal-700' : 'bg-orange-50 text-orange-700'
+                                    isPago ? 'bg-sky-50 text-sky-700' : 'bg-orange-50 text-orange-700'
                                 }`}>
                                     {isPago && <span>✓</span>} {isPago ? 'Pago' : 'Pendente'}
                                 </div>
@@ -1057,13 +1083,13 @@ ${ano}`;
                                 <div className="flex gap-2">
                                     <button 
                                         onClick={() => iniciarEdicaoFicha(registro)}
-                                        className="p-2 border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors"
+                                        className="p-3 border border-gray-200 rounded-2xl hover:bg-sky-50 hover:border-sky-200 text-sky-700 transition-colors"
                                     >
                                         <Pencil className="w-4 h-4" />
                                     </button>
                                     <button 
                                         onClick={() => handleToggleStatus(registro.id, registro.dataPgto)}
-                                        className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                                        className="px-4 py-3 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-800 bg-gray-50 hover:bg-sky-50 hover:border-sky-200 transition-colors"
                                     >
                                         {isPago ? 'Marcar pendente' : 'Marcar pago'}
                                     </button>
@@ -1078,17 +1104,17 @@ ${ano}`;
         )}
 
         {/* Cadastro Clínicas */}
-        {abaAtiva === 'clinicas' && (
+        {abaAtiva === 'cadastros' && (
           <div className="px-4 pt-4 space-y-6">
             <form onSubmit={guardarClinica} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-2 text-teal-600 font-bold mb-4 uppercase text-sm">
+              <div className="flex items-center gap-2 text-sky-600 font-bold mb-4 uppercase text-sm">
                 <Building2 className="w-4 h-4" /> Cadastrar Nova Clínica
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Nome da Clínica</label>
-                <input type="text" value={novaClinicaNome} onChange={(e) => setNovaClinicaNome(e.target.value)} required placeholder="Ex: Hospital Veterinário SanCla" className="w-full border border-gray-200 rounded-xl p-3 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600" />
+                <input type="text" value={novaClinicaNome} onChange={(e) => setNovaClinicaNome(e.target.value)} required placeholder="Ex: Hospital Veterinário SanCla" className="w-full border border-gray-200 rounded-xl p-3 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600" />
               </div>
-              <button type="submit" disabled={salvandoClinica} className="w-full bg-teal-600 text-white font-semibold rounded-xl py-3 hover:bg-teal-700 flex justify-center items-center gap-2 transition-colors">
+              <button type="submit" disabled={salvandoClinica} className="w-full bg-sky-600 text-white font-semibold rounded-xl py-3 hover:bg-sky-700 flex justify-center items-center gap-2 transition-colors">
                 {salvandoClinica ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} 
                 Salvar Clínica
               </button>
@@ -1104,17 +1130,17 @@ ${ano}`;
                     <div key={item.id} className="p-3 border border-gray-100 rounded-xl bg-gray-50 flex items-center justify-between">
                       {clinicaEditandoId === item.id ? (
                         <div className="flex items-center gap-2 w-full">
-                          <input type="text" value={nomeClinicaEditado} onChange={(e) => setNomeClinicaEditado(e.target.value)} className="flex-1 p-2 rounded-lg border border-teal-600 text-sm outline-none" />
+                          <input type="text" value={nomeClinicaEditado} onChange={(e) => setNomeClinicaEditado(e.target.value)} className="flex-1 p-2 rounded-lg border border-sky-600 text-sm outline-none" />
                           <button onClick={() => salvarEdicaoClinica(item.id)} className="bg-green-600 text-white p-2 rounded-lg"><Check size={16} /></button>
                           <button onClick={() => setClinicaEditandoId(null)} className="bg-gray-400 text-white p-2 rounded-lg"><X size={16} /></button>
                         </div>
                       ) : (
                         <>
                           <div className="text-sm text-gray-700 font-semibold flex items-center gap-2">
-                            <Building2 size={16} className="text-teal-600" /> {item.nome}
+                            <Building2 size={16} className="text-sky-600" /> {item.nome}
                           </div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => { setClinicaEditandoId(item.id); setNomeClinicaEditado(item.nome); }} className="p-2 bg-teal-50 text-teal-600 rounded-lg"><Pencil size={14} /></button>
+                            <button onClick={() => { setClinicaEditandoId(item.id); setNomeClinicaEditado(item.nome); }} className="p-2 bg-sky-50 text-sky-600 rounded-lg"><Pencil size={14} /></button>
                             <button onClick={() => excluirClinica(item.id, item.nome)} className="p-2 bg-red-50 text-red-600 rounded-lg"><Trash2 size={14} /></button>
                           </div>
                         </>
@@ -1128,17 +1154,17 @@ ${ano}`;
         )}
 
         {/* Cadastro Cirurgiões */}
-        {abaAtiva === 'cirurgioes' && (
+        {abaAtiva === 'cadastros' && (
           <div className="px-4 pt-4 space-y-6">
             <form onSubmit={guardarCirurgiao} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-2 text-teal-600 font-bold mb-4 uppercase text-sm">
+              <div className="flex items-center gap-2 text-sky-600 font-bold mb-4 uppercase text-sm">
                 <UserCheck className="w-4 h-4" /> Cadastrar Novo Cirurgião
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Nome Completo</label>
-                <input type="text" value={novoCirurgiaoNome} onChange={(e) => setNovoCirurgiaoNome(e.target.value)} required placeholder="Ex: Dra. Sabrina Micelli" className="w-full border border-gray-200 rounded-xl p-3 text-gray-900 outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600" />
+                <input type="text" value={novoCirurgiaoNome} onChange={(e) => setNovoCirurgiaoNome(e.target.value)} required placeholder="Ex: Dra. Sabrina Micelli" className="w-full border border-gray-200 rounded-xl p-3 text-gray-900 outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600" />
               </div>
-              <button type="submit" disabled={salvandoCirurgiao} className="w-full bg-teal-600 text-white font-semibold rounded-xl py-3 hover:bg-teal-700 flex justify-center items-center gap-2 transition-colors">
+              <button type="submit" disabled={salvandoCirurgiao} className="w-full bg-sky-600 text-white font-semibold rounded-xl py-3 hover:bg-sky-700 flex justify-center items-center gap-2 transition-colors">
                 {salvandoCirurgiao ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />} 
                 Salvar Cirurgião
               </button>
@@ -1154,17 +1180,17 @@ ${ano}`;
                     <div key={item.id} className="p-3 border border-gray-100 rounded-xl bg-gray-50 flex items-center justify-between">
                       {cirurgiaoEditandoId === item.id ? (
                         <div className="flex items-center gap-2 w-full">
-                          <input type="text" value={nomeCirurgiaoEditado} onChange={(e) => setNomeCirurgiaoEditado(e.target.value)} className="flex-1 p-2 rounded-lg border border-teal-600 text-sm outline-none" />
+                          <input type="text" value={nomeCirurgiaoEditado} onChange={(e) => setNomeCirurgiaoEditado(e.target.value)} className="flex-1 p-2 rounded-lg border border-sky-600 text-sm outline-none" />
                           <button onClick={() => salvarEdicaoCirurgiao(item.id)} className="bg-green-600 text-white p-2 rounded-lg"><Check size={16} /></button>
                           <button onClick={() => setCirurgiaoEditandoId(null)} className="bg-gray-400 text-white p-2 rounded-lg"><X size={16} /></button>
                         </div>
                       ) : (
                         <>
                           <div className="text-sm text-gray-700 font-semibold flex items-center gap-2">
-                            <UserCheck size={16} className="text-teal-600" /> {item.nome}
+                            <UserCheck size={16} className="text-sky-600" /> {item.nome}
                           </div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => { setCirurgiaoEditandoId(item.id); setNomeCirurgiaoEditado(item.nome); }} className="p-2 bg-teal-50 text-teal-600 rounded-lg"><Pencil size={14} /></button>
+                            <button onClick={() => { setCirurgiaoEditandoId(item.id); setNomeCirurgiaoEditado(item.nome); }} className="p-2 bg-sky-50 text-sky-600 rounded-lg"><Pencil size={14} /></button>
                             <button onClick={() => excluirCirurgiao(item.id, item.nome)} className="p-2 bg-red-50 text-red-600 rounded-lg"><Trash2 size={14} /></button>
                           </div>
                         </>
@@ -1187,7 +1213,7 @@ ${ano}`;
               <div className="flex items-start justify-between flex-wrap gap-2 mb-4">
                 <div>
                   <div className="text-base font-bold text-gray-900 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-teal-600" /> Faturamento por Período
+                    <BarChart3 className="w-5 h-5 text-sky-600" /> Faturamento por Período
                   </div>
                   <div className="text-sm text-gray-500 font-medium mt-1">
                     Total exibido: <strong className="text-gray-900">R$ {dadosGraficoDrill.totalPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
@@ -1195,7 +1221,7 @@ ${ano}`;
                 </div>
 
                 {(escopoGrafico || nivelDrill !== 'ano') && (
-                  <button onClick={handleDrillUp} className="bg-teal-50 text-teal-600 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
+                  <button onClick={handleDrillUp} className="bg-sky-50 text-sky-600 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
                     <ChevronLeft className="w-4 h-4" /> Subir Nível
                   </button>
                 )}
@@ -1207,7 +1233,7 @@ ${ano}`;
                   <button
                     key={n}
                     onClick={() => setNivelDrill(n)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${nivelDrill === n ? 'bg-white text-teal-600 shadow-sm' : 'text-gray-500'}`}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${nivelDrill === n ? 'bg-white text-sky-600 shadow-sm' : 'text-gray-500'}`}
                   >
                     {({ ano: 'Ano', mes: 'Mês', semana: 'Semana', dia: 'Dia' } as const)[n]}
                   </button>
@@ -1219,9 +1245,9 @@ ${ano}`;
                 {escopoGrafico ? (
                   <>
                     Filtrado em
-                    <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 pl-2 pr-1 py-0.5 rounded-full font-bold">
+                    <span className="inline-flex items-center gap-1 bg-sky-50 text-sky-700 pl-2 pr-1 py-0.5 rounded-full font-bold">
                       {dadosGraficoDrill.formatarRotulo(escopoGrafico.chave, escopoGrafico.tipo).replace('\n', ' ')}
-                      <button onClick={() => setEscopoGrafico(null)} className="text-teal-600 hover:text-teal-800 rounded-full w-4 h-4 flex items-center justify-center">
+                      <button onClick={() => setEscopoGrafico(null)} className="text-sky-600 hover:text-sky-800 rounded-full w-4 h-4 flex items-center justify-center">
                         <X size={12} />
                       </button>
                     </span>
@@ -1300,9 +1326,9 @@ ${ano}`;
             <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-                  <Filter className="w-4 h-4 text-teal-600" /> Filtrar Geral:
+                  <Filter className="w-4 h-4 text-sky-600" /> Filtrar Geral:
                 </span>
-                <select value={tipoPeriodo} onChange={(e) => setTipoPeriodo(e.target.value as any)} className="py-1.5 px-3 rounded-lg border border-gray-200 text-sm font-semibold bg-gray-50 text-teal-600 outline-none">
+                <select value={tipoPeriodo} onChange={(e) => setTipoPeriodo(e.target.value as any)} className="py-1.5 px-3 rounded-lg border border-gray-200 text-sm font-semibold bg-gray-50 text-sky-600 outline-none">
                   <option value="todos">Todo Histórico</option>
                   <option value="mes">Mês</option>
                   <option value="ano">Ano</option>
@@ -1342,7 +1368,7 @@ ${ano}`;
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden flex flex-col justify-between">
                 <div className="absolute -right-3 -top-3 opacity-5">
-                  <TrendingUp size={100} className="text-teal-600" />
+                  <TrendingUp size={100} className="text-sky-600" />
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
@@ -1352,7 +1378,7 @@ ${ano}`;
                     R$ {metricasDashboard.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 mt-3 text-xs text-teal-600 font-bold">
+                <div className="flex items-center gap-1.5 mt-3 text-xs text-sky-600 font-bold">
                   <Activity size={14} /> {metricasDashboard.quantidade} procedimentos
                 </div>
               </div>
@@ -1377,7 +1403,7 @@ ${ano}`;
             {/* Gráfico Rosca */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <div className="text-base font-bold text-gray-900 mb-5 flex items-center gap-2">
-                <div className="bg-teal-50 p-2 rounded-xl text-teal-600">
+                <div className="bg-sky-50 p-2 rounded-xl text-sky-600">
                   <Building2 size={18} />
                 </div>
                 Faturamento por Clínica
@@ -1441,7 +1467,7 @@ ${ano}`;
                             key={fatia.id}
                             onMouseEnter={() => setFatiaHover(fatia)}
                             onMouseLeave={() => setFatiaHover(null)}
-                            className={`border-b border-gray-50 cursor-pointer transition-colors ${fatiaHover?.id === fatia.id ? 'bg-teal-50' : 'bg-transparent'}`}
+                            className={`border-b border-gray-50 cursor-pointer transition-colors ${fatiaHover?.id === fatia.id ? 'bg-sky-50' : 'bg-transparent'}`}
                           >
                             <td className="py-2 font-bold text-gray-700 flex items-center gap-2">
                               <span className="w-2.5 h-2.5 rounded-full block" style={{ backgroundColor: fatia.cor }} />
@@ -1516,7 +1542,7 @@ ${ano}`;
             {/* Espécie */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <div className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="bg-teal-50 p-1.5 rounded-lg text-teal-600">
+                <div className="bg-sky-50 p-1.5 rounded-lg text-sky-600">
                   <Dog size={16} />
                 </div>
                 Por Espécie
@@ -1571,7 +1597,7 @@ ${ano}`;
                   <select
                     value={quitFormaPgto}
                     onChange={(e) => setQuitFormaPgto(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-gray-200 text-sm outline-none bg-white font-medium focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                    className="w-full p-3 rounded-xl border border-gray-200 text-sm outline-none bg-white font-medium focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                   >
                     <option value="Pix">Pix</option>
                     <option value="Dinheiro">Dinheiro</option>
@@ -1587,7 +1613,7 @@ ${ano}`;
                     type="date"
                     value={quitDataPgto}
                     onChange={(e) => setQuitDataPgto(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-gray-200 text-sm outline-none font-medium focus:border-teal-600 focus:ring-1 focus:ring-teal-600"
+                    className="w-full p-3 rounded-xl border border-gray-200 text-sm outline-none font-medium focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
                   />
                 </div>
               </div>
@@ -1606,54 +1632,38 @@ ${ano}`;
 
       </main>
 
-      {/* MENU INFERIOR COM BOTÃO FLUTUANTE */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-1 pb-safe flex justify-between items-center z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
-        {[
-          { id: 'historico', icon: <ClipboardList className="w-6 h-6" />, label: 'Registros' },
-          { id: 'clinicas', icon: <Building2 className="w-6 h-6" />, label: 'Clínicas' }
-        ].map(item => (
-          <button
-            key={item.id}
-            onClick={() => setAbaAtiva(item.id as any)}
-            className={`flex flex-col items-center p-2 w-[72px] transition-colors ${
-              abaAtiva === item.id ? 'text-teal-600' : 'text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            {item.icon}
-            <span className="text-[10px] mt-1 font-medium">{item.label}</span>
-          </button>
-        ))}
+      {/* MENU INFERIOR FLUTUANTE - OTIMIZADO PARA CELULAR */}
+      {abaAtiva !== 'formulario' && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur-md px-2 pt-2 pb-[max(env(safe-area-inset-bottom),8px)] shadow-[0_-6px_24px_rgba(15,23,42,0.06)]">
+          <div className="mx-auto flex max-w-xl items-end justify-between">
+            {[
+              { id: 'inicio', icon: <Activity className="w-6 h-6" />, label: 'Início' },
+              { id: 'historico', icon: <ClipboardList className="w-6 h-6" />, label: 'Registros' }
+            ].map(item => (
+              <button key={item.id} onClick={() => setAbaAtiva(item.id as any)} className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 transition-colors ${abaAtiva === item.id ? 'text-sky-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                {item.icon}
+                <span className="text-[11px] font-medium">{item.label}</span>
+              </button>
+            ))}
 
-        {/* Botão Central (+) */}
-        <div className="relative -top-6 flex justify-center">
-          <button
-            onClick={() => {
-                setFichaEditandoId(null);
-                setEditFichaData({});
-                setAbaAtiva('formulario');
-            }}
-            className="bg-teal-600 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg shadow-teal-200 transform transition active:scale-95 hover:bg-teal-700"
-          >
-            <Plus className="w-7 h-7" />
-          </button>
-        </div>
+            <div className="relative -top-5 flex flex-1 justify-center">
+              <button onClick={() => { setFichaEditandoId(null); setEditFichaData({}); setAbaAtiva('formulario'); }} aria-label="Adicionar registro" className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-sky-600 text-white shadow-lg shadow-sky-200 transition hover:bg-sky-700 active:scale-95">
+                <Plus className="w-8 h-8" />
+              </button>
+            </div>
 
-        {[
-          { id: 'cirurgioes', icon: <UserCheck className="w-6 h-6" />, label: 'Cirurgiões' },
-          { id: 'dashboard', icon: <BarChart2 className="w-6 h-6" />, label: 'Dashboard' }
-        ].map(item => (
-          <button
-            key={item.id}
-            onClick={() => setAbaAtiva(item.id as any)}
-            className={`flex flex-col items-center p-2 w-[72px] transition-colors ${
-              abaAtiva === item.id ? 'text-teal-600' : 'text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            {item.icon}
-            <span className="text-[10px] mt-1 font-medium">{item.label}</span>
-          </button>
-        ))}
-      </nav>
+            {[
+              { id: 'cadastros', icon: <Building2 className="w-6 h-6" />, label: 'Cadastros' },
+              { id: 'dashboard', icon: <BarChart2 className="w-6 h-6" />, label: 'Relatórios' }
+            ].map(item => (
+              <button key={item.id} onClick={() => setAbaAtiva(item.id as any)} className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 transition-colors ${abaAtiva === item.id ? 'text-sky-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                {item.icon}
+                <span className="text-[11px] font-medium">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
