@@ -674,7 +674,7 @@ ${ano}`;
       porClinica,
       fatiasSVG,
    pendentesPorClinica
-  };
+  },
 [registos, tipoPeriodo, mesFiltro, anoFiltro, dataInicioFiltro, dataFimFiltro]);
 
   return (
