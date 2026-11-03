@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import { 
-  Syringe, User, Plus, Activity, Loader2, MapPin, 
-  DollarSign, Calendar, FileText, CheckCircle2, Clock, Building2, 
-  Pencil, Trash2, X, Save, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle, TrendingUp, AlertCircle, ChevronLeft, LogOut, Copy, ChevronDown, ChevronUp, Share2
+  Syringe, Plus, Activity, Loader2, 
+  Clock, Building2, Pencil, Trash2, X, BarChart3, Dog, Download, 
+  LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, CheckCircle, AlertCircle, ChevronLeft, LogOut, Copy, ChevronDown, ChevronUp, Share2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
@@ -21,6 +21,56 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Tipos TypeScript para evitar erros de compilação no Vercel
+export interface Registo {
+  id: string;
+  dataProc: string;
+  local?: string;
+  valor?: string;
+  cirurgiao?: string;
+  dataPgto?: string;
+  paciente: string;
+  especie?: string;
+  peso?: string;
+  procedimento: string;
+  complexidade?: string;
+  formaPgto?: string;
+  tutor?: string;
+  observacoes?: string;
+  dataCriacao?: any;
+}
+
+export interface Clinica {
+  id: string;
+  nome: string;
+  dataCriacao?: any;
+}
+
+export interface Cirurgiao {
+  id: string;
+  nome: string;
+  dataCriacao?: any;
+}
+
+export interface ModalQuitacao {
+  id: string;
+  paciente: string;
+}
+
+export interface FatiaSVG {
+  id: string;
+  nome: string;
+  valor: number;
+  porcentagem: number;
+  cor: string;
+  pathData: string;
+}
+
+export interface EscopoGrafico {
+  tipo: 'ano' | 'mes' | 'semana';
+  chave: string;
+}
+
 // Paleta de cores em tons de azul e destaques para o Dashboard
 const PALETA_CORES = [
   '#0284c7', '#0369a1', '#2563eb', '#3b82f6', '#0ea5e9', 
@@ -28,19 +78,19 @@ const PALETA_CORES = [
 ];
 
 export default function App() {
-  // Estados para dados vindos em TEMPO REAL do Firebase
-  const [registos, setRegistos] = useState([]);
-  const [clinicas, setClinicas] = useState([]);
-  const [cirurgioes, setCirurgioes] = useState([]);
+  // Estados tipados para TypeScript
+  const [registos, setRegistos] = useState<Registo[]>([]);
+  const [clinicas, setClinicas] = useState<Clinica[]>([]);
+  const [cirurgioes, setCirurgioes] = useState<Cirurgiao[]>([]);
   
   const [salvando, setSalvando] = useState(false);
   const [salvandoClinica, setSalvandoClinica] = useState(false);
   const [salvandoCirurgiao, setSalvandoCirurgiao] = useState(false);
   
-  const [abaAtiva, setAbaAtiva] = useState('historico');
+  const [abaAtiva, setAbaAtiva] = useState<'historico' | 'formulario' | 'clinicas' | 'cirurgioes' | 'dashboard'>('historico');
 
   // Modo de visualização do Histórico
-  const [modoVisualizacao, setModoVisualizacao] = useState('cards');
+  const [modoVisualizacao, setModoVisualizacao] = useState<'cards' | 'tabela'>('cards');
 
   // Filtros no Histórico
   const [buscaHistorico, setBuscaHistorico] = useState('');
@@ -48,7 +98,7 @@ export default function App() {
   const [filtroStatusHistorico, setFiltroStatusHistorico] = useState('');
   const [filtroDataInicio, setFiltroDataInicio] = useState('');
   const [filtroDataFim, setFiltroDataFim] = useState('');
-  const [ordenacaoHistorico, setOrdenacaoHistorico] = useState('data-desc');
+  const [ordenacaoHistorico, setOrdenacaoHistorico] = useState<'data-desc' | 'data-asc' | 'paciente-asc' | 'paciente-desc'>('data-desc');
 
   // Formulário - Data pré-preenchida com HOJE como primeiro item
   const [dataProc, setDataProc] = useState(() => new Date().toISOString().slice(0, 10));
@@ -60,52 +110,52 @@ export default function App() {
   const [especie, setEspecie] = useState('Canino');
   const [peso, setPeso] = useState('');
   const [formaPgto, setFormaPgto] = useState('Pix');
-  const [statusPgto, setStatusPgto] = useState('Pago');
+  const [statusPgto, setStatusPgto] = useState<'Pago' | 'Pendente'>('Pago');
   const [tutor, setTutor] = useState('');
   const [procedimento, setProcedimento] = useState('');
   const [complexidade, setComplexidade] = useState('Média');
   const [observacoes, setObservacoes] = useState('');
 
   // Modal Quitação
-  const [modalQuitacao, setModalQuitacao] = useState(null);
+  const [modalQuitacao, setModalQuitacao] = useState<ModalQuitacao | null>(null);
   const [quitFormaPgto, setQuitFormaPgto] = useState('Pix');
   const [quitDataPgto, setQuitDataPgto] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Clínicas e Cirurgiões
   const [novaClinicaNome, setNovaClinicaNome] = useState('');
-  const [clinicaEditandoId, setClinicaEditandoId] = useState(null);
+  const [clinicaEditandoId, setClinicaEditandoId] = useState<string | null>(null);
   const [nomeClinicaEditado, setNomeClinicaEditado] = useState('');
 
   const [novoCirurgiaoNome, setNovoCirurgiaoNome] = useState('');
-  const [cirurgiaoEditandoId, setCirurgiaoEditandoId] = useState(null);
+  const [cirurgiaoEditandoId, setCirurgiaoEditandoId] = useState<string | null>(null);
   const [nomeCirurgiaoEditado, setNomeCirurgiaoEditado] = useState('');
 
   // Edição em linha
-  const [fichaEditandoId, setFichaEditandoId] = useState(null);
-  const [editFichaData, setEditFichaData] = useState({});
+  const [fichaEditandoId, setFichaEditandoId] = useState<string | null>(null);
+  const [editFichaData, setEditFichaData] = useState<Partial<Registo>>({});
 
   // Gráficos e Relatório
-  const [nivelDrill, setNivelDrill] = useState('mes');
-  const [escopoGrafico, setEscopoGrafico] = useState(null);
-  const scrollGraficoRef = useRef(null);
+  const [nivelDrill, setNivelDrill] = useState<'ano' | 'mes' | 'semana' | 'dia'>('mes');
+  const [escopoGrafico, setEscopoGrafico] = useState<EscopoGrafico | null>(null);
+  const scrollGraficoRef = useRef<HTMLDivElement>(null);
 
-  const [tipoPeriodo, setTipoPeriodo] = useState('todos');
-  const [mesFiltro, setMesFiltro] = useState(() => {
+  const [tipoPeriodo] = useState<'mes' | 'ano' | 'personalizado' | 'todos'>('todos');
+  const [mesFiltro] = useState(() => {
     const hoje = new Date();
     return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [anoFiltro, setAnoFiltro] = useState(() => String(new Date().getFullYear()));
-  const [dataInicioFiltro, setDataInicioFiltro] = useState('');
-  const [dataFimFiltro, setDataFimFiltro] = useState('');
-  const [fatiaHover, setFatiaHover] = useState(null);
-  const [clinicaPendenteExpandida, setClinicaPendenteExpandida] = useState(null);
+  const [anoFiltro] = useState(() => String(new Date().getFullYear()));
+  const [dataInicioFiltro] = useState('');
+  const [dataFimFiltro] = useState('');
+  const [fatiaHover, setFatiaHover] = useState<FatiaSVG | null>(null);
+  const [clinicaPendenteExpandida, setClinicaPendenteExpandida] = useState<string | null>(null);
   const [copiadoWhatsApp, setCopiadoWhatsApp] = useState(false);
 
   // Escutar Firebase em Tempo Real
   useEffect(() => {
     const q = query(collection(db, 'anestesias'), orderBy('dataCriacao', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Registo[];
       setRegistos(dados);
     }, (error) => {
       console.warn("Usando dados locais se não houver acesso à rede:", error.message);
@@ -116,7 +166,7 @@ export default function App() {
   useEffect(() => {
     const q = query(collection(db, 'clinicas'), orderBy('nome', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Clinica[];
       setClinicas(dados);
     });
     return () => unsubscribe();
@@ -125,21 +175,21 @@ export default function App() {
   useEffect(() => {
     const q = query(collection(db, 'cirurgioes'), orderBy('nome', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Cirurgiao[];
       setCirurgioes(dados);
     });
     return () => unsubscribe();
   }, []);
 
   // Formatação de data BR dd/mm/aaaa
-  const formatarDataBR = (dataStr) => {
+  const formatarDataBR = (dataStr?: string) => {
     if (!dataStr) return '—';
     const partes = dataStr.split('-');
     if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
     return dataStr;
   };
 
-  const handlePesoChange = (valRaw, isEdit = false) => {
+  const handlePesoChange = (valRaw: string, isEdit = false) => {
     const val = valRaw.replace(/[^0-9.,]/g, '');
     if (val.length <= 6) {
       if (isEdit) setEditFichaData(prev => ({ ...prev, peso: val }));
@@ -147,7 +197,7 @@ export default function App() {
     }
   };
 
-  const handleValorChange = (valRaw, isEdit = false) => {
+  const handleValorChange = (valRaw: string, isEdit = false) => {
     const apenasDigitos = valRaw.replace(/\D/g, '');
     let valFormatado = '';
     if (apenasDigitos) {
@@ -159,7 +209,7 @@ export default function App() {
   };
 
   // Salvar Ficha no Firebase
-  const guardarRegisto = async (e) => {
+  const guardarRegisto = async (e: FormEvent) => {
     e.preventDefault();
     setSalvando(true);
     try {
@@ -201,13 +251,13 @@ export default function App() {
       setObservacoes('');
 
       setAbaAtiva('historico');
-    } catch (error) {
-      alert("Erro ao gravar ficha no banco de dados: " + error.message);
+    } catch (error: any) {
+      alert("Erro ao gravar ficha no banco de dados: " + (error?.message || error));
     }
     setSalvando(false);
   };
 
-  const abrirModalQuitacao = (id, nomePaciente) => {
+  const abrirModalQuitacao = (id: string, nomePaciente: string) => {
     setModalQuitacao({ id, paciente: nomePaciente });
     setQuitFormaPgto('Pix');
     setQuitDataPgto(new Date().toISOString().slice(0, 10));
@@ -221,38 +271,38 @@ export default function App() {
         formaPgto: quitFormaPgto
       });
       setModalQuitacao(null);
-    } catch (error) {
-      alert("Erro ao quitar: " + error.message);
+    } catch (error: any) {
+      alert("Erro ao quitar: " + (error?.message || error));
     }
   };
 
-  const alternarStatusPendente = async (id) => {
+  const alternarStatusPendente = async (id: string) => {
     try {
       await updateDoc(doc(db, 'anestesias', id), {
         dataPgto: '',
         formaPgto: ''
       });
-    } catch (error) {
-      alert("Erro ao alterar status: " + error.message);
+    } catch (error: any) {
+      alert("Erro ao alterar status: " + (error?.message || error));
     }
   };
 
-  const excluirFicha = async (id, nomePaciente) => {
+  const excluirFicha = async (id: string, nomePaciente: string) => {
     if (confirm(`Tem certeza que deseja excluir a ficha do paciente "${nomePaciente}"?`)) {
       try {
         await deleteDoc(doc(db, 'anestesias', id));
-      } catch (error) {
-        alert("Erro ao excluir ficha: " + error.message);
+      } catch (error: any) {
+        alert("Erro ao excluir ficha: " + (error?.message || error));
       }
     }
   };
 
-  const iniciarEdicaoFicha = (registo) => {
+  const iniciarEdicaoFicha = (registo: Registo) => {
     setFichaEditandoId(registo.id);
     setEditFichaData({ ...registo, complexidade: registo.complexidade || 'Média' });
   };
 
-  const salvarEdicaoFicha = async (id) => {
+  const salvarEdicaoFicha = async (id: string) => {
     if (!editFichaData.paciente?.trim() || !editFichaData.procedimento?.trim()) {
       alert("Nome do paciente e Procedimento são obrigatórios.");
       return;
@@ -274,8 +324,8 @@ export default function App() {
         observacoes: editFichaData.observacoes || ''
       });
       setFichaEditandoId(null);
-    } catch (error) {
-      alert("Erro ao atualizar ficha: " + error.message);
+    } catch (error: any) {
+      alert("Erro ao atualizar ficha: " + (error?.message || error));
     }
   };
 
@@ -325,60 +375,60 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const guardarClinica = async (e) => {
+  const guardarClinica = async (e: FormEvent) => {
     e.preventDefault();
     if (!novaClinicaNome.trim()) return;
     setSalvandoClinica(true);
     try {
       await addDoc(collection(db, 'clinicas'), { nome: novaClinicaNome.trim(), dataCriacao: serverTimestamp() });
       setNovaClinicaNome('');
-    } catch (error) { alert("Erro ao cadastrar clínica: " + error.message); }
+    } catch (error: any) { alert("Erro ao cadastrar clínica: " + (error?.message || error)); }
     setSalvandoClinica(false);
   };
 
-  const excluirClinica = async (id, nome) => {
+  const excluirClinica = async (id: string, nome: string) => {
     if (confirm(`Excluir a clínica "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'clinicas', id)); } catch (error) { alert("Erro ao excluir clínica: " + error.message); }
+      try { await deleteDoc(doc(db, 'clinicas', id)); } catch (error: any) { alert("Erro ao excluir clínica: " + (error?.message || error)); }
     }
   };
 
-  const salvarEdicaoClinica = async (id) => {
+  const salvarEdicaoClinica = async (id: string) => {
     if (!nomeClinicaEditado.trim()) return;
     try {
       await updateDoc(doc(db, 'clinicas', id), { nome: nomeClinicaEditado.trim() });
       setClinicaEditandoId(null);
-    } catch (error) { alert("Erro ao atualizar clínica: " + error.message); }
+    } catch (error: any) { alert("Erro ao atualizar clínica: " + (error?.message || error)); }
   };
 
-  const guardarCirurgiao = async (e) => {
+  const guardarCirurgiao = async (e: FormEvent) => {
     e.preventDefault();
     if (!novoCirurgiaoNome.trim()) return;
     setSalvandoCirurgiao(true);
     try {
       await addDoc(collection(db, 'cirurgioes'), { nome: novoCirurgiaoNome.trim(), dataCriacao: serverTimestamp() });
       setNovoCirurgiaoNome('');
-    } catch (error) { alert("Erro ao cadastrar cirurgião: " + error.message); }
+    } catch (error: any) { alert("Erro ao cadastrar cirurgião: " + (error?.message || error)); }
     setSalvandoCirurgiao(false);
   };
 
-  const excluirCirurgiao = async (id, nome) => {
+  const excluirCirurgiao = async (id: string, nome: string) => {
     if (confirm(`Excluir o cirurgião "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'cirurgioes', id)); } catch (error) { alert("Erro ao excluir cirurgião: " + error.message); }
+      try { await deleteDoc(doc(db, 'cirurgioes', id)); } catch (error: any) { alert("Erro ao excluir cirurgião: " + (error?.message || error)); }
     }
   };
 
-  const salvarEdicaoCirurgiao = async (id) => {
+  const salvarEdicaoCirurgiao = async (id: string) => {
     if (!nomeCirurgiaoEditado.trim()) return;
     try {
       await updateDoc(doc(db, 'cirurgioes', id), { nome: nomeCirurgiaoEditado.trim() });
       setCirurgiaoEditandoId(null);
-    } catch (error) { alert("Erro ao atualizar cirurgião: " + error.message); }
+    } catch (error: any) { alert("Erro ao atualizar cirurgião: " + (error?.message || error)); }
   };
 
   // Processamento de Dados do Relatório
-  const getAnoFromData = (d) => d ? d.slice(0, 4) : '';
-  const getMesFromData = (d) => d ? d.slice(0, 7) : '';
-  const getSemanaFromData = (d) => {
+  const getAnoFromData = (d: string) => d ? d.slice(0, 4) : '';
+  const getMesFromData = (d: string) => d ? d.slice(0, 7) : '';
+  const getSemanaFromData = (d: string) => {
     if (!d) return '';
     const dt = new Date(`${d}T00:00:00Z`);
     const day = dt.getUTCDay() || 7;
@@ -389,7 +439,7 @@ export default function App() {
   };
 
   const dadosGraficoDrill = useMemo(() => {
-    const mapaCoresClinicas = {};
+    const mapaCoresClinicas: Record<string, string> = {};
     clinicas.forEach((c, idx) => { mapaCoresClinicas[c.nome] = PALETA_CORES[idx % PALETA_CORES.length]; });
 
     const filtrados = registos.filter(r => {
@@ -400,9 +450,9 @@ export default function App() {
       return getSemanaFromData(r.dataProc) === escopoGrafico.chave;
     });
 
-    const grupos = {};
-    const totaisPorGrupo = {};
-    const clinicasPresentes = new Set();
+    const grupos: Record<string, Record<string, number>> = {};
+    const totaisPorGrupo: Record<string, number> = {};
+    const clinicasPresentes = new Set<string>();
     let totalPeriodo = 0;
 
     filtrados.forEach(r => {
@@ -422,14 +472,13 @@ export default function App() {
       totalPeriodo += v;
     });
 
-    // Se estiver no nível DIA, preencher todos os dias até HOJE (mesmo os zerados/em branco)
+    // Se estiver no nível DIA, preencher todos os dias até HOJE
     if (nivelDrill === 'dia') {
-      let dataInicial;
+      let dataInicial: Date;
       if (escopoGrafico && escopoGrafico.tipo === 'mes') {
         const [anoScope, mesScope] = escopoGrafico.chave.split('-');
         dataInicial = new Date(Number(anoScope), Number(mesScope) - 1, 1);
       } else {
-        // Padrão: 30 dias atrás até hoje
         dataInicial = new Date();
         dataInicial.setDate(dataInicial.getDate() - 30);
       }
@@ -450,7 +499,7 @@ export default function App() {
     const chavesOrdenadas = Object.keys(grupos).sort();
     const maiorValorTotal = Math.max(...Object.values(totaisPorGrupo), 1);
 
-    const formatarRotulo = (ch, n = nivelDrill) => {
+    const formatarRotulo = (ch: string, n = nivelDrill) => {
       const ms = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       if (n === 'ano') return ch;
       if (n === 'mes') {
@@ -484,9 +533,9 @@ export default function App() {
     });
 
     let totalGeral = 0, totalPago = 0, totalPendente = 0, caes = 0, gatos = 0;
-    const porClinica = {};
-    const pendentesPorClinica = {};
-    const listaFichasPendentes = [];
+    const porClinica: Record<string, number> = {};
+    const pendentesPorClinica: Record<string, { valor: number; qtd: number; fichas: Registo[] }> = {};
+    const listaFichasPendentes: Registo[] = [];
 
     fichas.forEach(item => {
       const v = item.valor ? parseFloat(item.valor.replace('.', '').replace(',', '.')) : 0;
@@ -514,7 +563,7 @@ export default function App() {
     const listaClinicas = Object.entries(porClinica).sort((a, b) => b[1] - a[1]);
     let anguloAcumulado = 0;
 
-    const fatiasSVG = listaClinicas.map(([nome, valor], index) => {
+    const fatiasSVG: FatiaSVG[] = listaClinicas.map(([nome, valor], index) => {
       const porcentagem = totalGeral > 0 ? (valor / totalGeral) * 100 : 0;
       const angulo = totalGeral > 0 ? (valor / totalGeral) * 360 : 0;
       const inicioAng = anguloAcumulado;
@@ -547,8 +596,8 @@ export default function App() {
   }, [registos, tipoPeriodo, mesFiltro, anoFiltro, dataInicioFiltro, dataFimFiltro]);
 
   // Função para copiar resumo formatado diretamente para WhatsApp
-  const copiarResumoWhatsApp = (clinicaNome = null) => {
-    let pendentes = [];
+  const copiarResumoWhatsApp = (clinicaNome: string | null = null) => {
+    let pendentes: Registo[] = [];
     if (clinicaNome) {
       pendentes = metricasDashboard.pendentesPorClinica[clinicaNome]?.fichas || [];
     } else {
@@ -579,7 +628,6 @@ export default function App() {
     texto += `------------------------------------\n`;
     texto += `💰 *TOTAL PENDENTE: R$ ${totalResumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*`;
 
-    // Copiar para clipboard via textarea (compatível com iFrame/mobile)
     const el = document.createElement('textarea');
     el.value = texto;
     document.body.appendChild(el);
@@ -727,7 +775,7 @@ export default function App() {
                 </select>
                 <select 
                   value={ordenacaoHistorico} 
-                  onChange={(e) => setOrdenacaoHistorico(e.target.value)}
+                  onChange={(e) => setOrdenacaoHistorico(e.target.value as any)}
                   className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-[#0284c7] outline-none"
                 >
                   <option value="data-desc">Mais Recentes</option>
@@ -1079,7 +1127,7 @@ export default function App() {
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-2">Status *</label>
                 <div className="flex gap-2">
-                  {['Pendente', 'Pago'].map((st) => (
+                  {(['Pendente', 'Pago'] as const).map((st) => (
                     <button
                       key={st}
                       type="button"
@@ -1173,7 +1221,7 @@ export default function App() {
                     {clinicaEditandoId === c.id ? (
                       <div className="flex gap-2 w-full">
                         <input type="text" value={nomeClinicaEditado} onChange={(e) => setNomeClinicaEditado(e.target.value)} className="border rounded-lg p-1 text-xs flex-1" />
-                        <button onClick={() => salvarEdicaoClinica(c.id)} className="text-emerald-600"><Check className="w-4 h-4" /></button>
+                        <button onClick={() => salvarEdicaoClinica(c.id)} className="text-emerald-600"><CheckCircle2 className="w-4 h-4" /></button>
                       </div>
                     ) : (
                       <>
@@ -1223,7 +1271,7 @@ export default function App() {
                     {cirurgiaoEditandoId === c.id ? (
                       <div className="flex gap-2 w-full">
                         <input type="text" value={nomeCirurgiaoEditado} onChange={(e) => setNomeCirurgiaoEditado(e.target.value)} className="border rounded-lg p-1 text-xs flex-1" />
-                        <button onClick={() => salvarEdicaoCirurgiao(c.id)} className="text-emerald-600"><Check className="w-4 h-4" /></button>
+                        <button onClick={() => salvarEdicaoCirurgiao(c.id)} className="text-emerald-600"><CheckCircle2 className="w-4 h-4" /></button>
                       </div>
                     ) : (
                       <>
@@ -1268,7 +1316,7 @@ export default function App() {
 
               {/* Níveis do Gráfico */}
               <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
-                {(['ano', 'mes', 'semana', 'dia']).map(n => (
+                {(['ano', 'mes', 'semana', 'dia'] as const).map(n => (
                   <button
                     key={n}
                     onClick={() => setNivelDrill(n)}
@@ -1431,7 +1479,7 @@ export default function App() {
                   >
                     {copiadoWhatsApp ? (
                       <>
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Copiado para WhatsApp!
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Copiado para WhatsApp!
                       </>
                     ) : (
                       <>
