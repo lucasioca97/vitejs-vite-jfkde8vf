@@ -27,7 +27,7 @@ const PALETA_CORES = [
   '#8b5cf6', '#6366f1', '#14b8a6', '#f97316', '#84cc16'
 ];
 
- {
+function App() {
   const [registos, setRegistos] = useState<any[]>([]);
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [cirurgioes, setCirurgioes] = useState<any[]>([]);
@@ -1265,7 +1265,7 @@ ${ano}`;
                             </span>
 
                             <div className="w-full max-w-[38px] rounded-t-md overflow-hidden flex flex-col-reverse shadow-sm" style={{ height: `${alturaPx}px` }}>
-                              {Object.entries(locaisDoGrupo).map(([nomeLocal, valorLocal]) => (
+                              {Object.entries(locaisDoGrupo as Record<string, number>).map(([nomeLocal, valorLocal]) => (
                                 <div
                                   key={nomeLocal}
                                   title={`${nomeLocal}: R$ ${valorLocal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
@@ -1492,7 +1492,7 @@ ${ano}`;
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(metricasDashboard.pendentesPorClinica)
+                      {Object.entries(metricasDashboard.pendentesPorClinica as Record<string, { valor: number; qtd: number }>)
                         .sort((a, b) => b[1].valor - a[1].valor)
                         .map(([clinicaNome, dados]) => (
                           <tr key={clinicaNome} className="border-b border-gray-50">
