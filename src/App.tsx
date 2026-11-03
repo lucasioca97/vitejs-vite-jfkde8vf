@@ -7,8 +7,6 @@ import {
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAUORPRtwSMaYegEQzA0J71G4i6CYLNvJc",
@@ -29,7 +27,7 @@ const PALETA_CORES = [
   '#8b5cf6', '#6366f1', '#14b8a6', '#f97316', '#84cc16'
 ];
 
-export default function App() {
+ {
   const [registos, setRegistos] = useState<any[]>([]);
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [cirurgioes, setCirurgioes] = useState<any[]>([]);
