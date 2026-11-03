@@ -673,9 +673,9 @@ ${ano}`;
       gatos,
       porClinica,
       fatiasSVG,
-      pendentesPorClinica
+   pendentesPorClinica
     };
-  , [registos, tipoPeriodo, mesFiltro, anoFiltro, dataInicioFiltro, dataFimFiltro]);
+  }, [registos, tipoPeriodo, mesFiltro, anoFiltro, dataInicioFiltro, dataFimFiltro]);
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-24">
