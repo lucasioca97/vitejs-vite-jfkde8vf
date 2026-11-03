@@ -369,7 +369,7 @@ export default function App() {
     const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    // Solução para o TS6133 no Vercel
+    // Removida a atribuição da variável 'a' desnecessária para satisfazer a regra TS6133 do TypeScript
     const linkDownload = document.createElement('a');
     linkDownload.href = url;
     linkDownload.setAttribute('download', `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`);
