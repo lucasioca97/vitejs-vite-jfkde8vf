@@ -400,9 +400,6 @@ export default function App() {
       setNomeCirurgiaoEditado('');
     } catch (error: any) { alert("Erro ao atualizar cirurgião: " + error.message); }
   };
-
-  };
-
   
   // ==========================================
   // GRÁFICO DE FATURAMENTO POR PERÍODO
@@ -1663,3 +1660,4 @@ ${ano}`;
     </div>
   );
 }
+export default App;
