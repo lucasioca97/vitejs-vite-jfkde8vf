@@ -557,22 +557,40 @@ export default function App() {
       return;
     }
 
-    let texto = `📋 *PENDÊNCIAS FINANCEIRAS - ANESTVET*\n\n`;
-    texto += `Olá! Segue a relação de procedimentos pendentes da clínica *${clinicaNome}*.\n\n`;
+    const dataInicio = relatorioDataInicio
+      ? formatarDataBR(relatorioDataInicio)
+      : null;
+    const dataFim = relatorioDataFim
+      ? formatarDataBR(relatorioDataFim)
+      : null;
 
-    dados.fichas.forEach(f => {
-      texto += `🐾 *${f.paciente}* (${f.especie || 'Canino'})\n`;
-      texto += `📅 Data: ${formatarDataBR(f.dataProc)}\n`;
-      texto += `🏥 Procedimento: ${f.procedimento}\n`;
-      texto += `💰 Valor: R$ ${f.valor || '0,00'}\n\n`;
+    let periodo = 'Todo o período';
+    if (dataInicio && dataFim) {
+      periodo = `${dataInicio} a ${dataFim}`;
+    } else if (dataInicio) {
+      periodo = `A partir de ${dataInicio}`;
+    } else if (dataFim) {
+      periodo = `Até ${dataFim}`;
+    }
+
+    let texto = `*ANESTVET | RELATÓRIO DE PENDÊNCIAS FINANCEIRAS*\n`;
+    texto += `Clínica: *${clinicaNome}*\n`;
+    texto += `Período: *${periodo}*\n\n`;
+    texto += `Prezados, segue a relação dos procedimentos com pagamento pendente no período informado.\n\n`;
+
+    dados.fichas.forEach((f, index) => {
+      texto += `*${index + 1}. ${f.paciente}* (${f.especie || 'Canino'})\n`;
+      texto += `Data do procedimento: ${formatarDataBR(f.dataProc)}\n`;
+      texto += `Procedimento: ${f.procedimento}\n`;
+      texto += `Valor: R$ ${f.valor || '0,00'}\n\n`;
     });
 
-    texto += `━━━━━━━━━━━━━━\n`;
-    texto += `📌 *TOTAL DE PROCEDIMENTOS:* ${dados.qtd}\n`;
-    texto += `💰 *TOTAL PENDENTE: R$ ${dados.valor.toLocaleString('pt-BR', {
+    texto += `--------------------------------\n`;
+    texto += `*Quantidade de procedimentos:* ${dados.qtd}\n`;
+    texto += `*Total pendente: R$ ${dados.valor.toLocaleString('pt-BR', {
       minimumFractionDigits: 2
     })}*\n\n`;
-    texto += `Obrigado!`;
+    texto += `Atenciosamente,\nAnestVet`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
