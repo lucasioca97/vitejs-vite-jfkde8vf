@@ -431,12 +431,27 @@ export default function App() {
     const clinicasPresentes = new Set<string>();
     let totalPeriodo = 0;
 
-    if (nivelDrill === 'dia' && escopoGrafico) {
-      const hojeStr = new Date().toISOString().slice(0, 10);
-      let dataCursor = new Date(`${escopoGrafico.chave}-01T00:00:00Z`);
-      const dataLimite = new Date(`${hojeStr}T00:00:00Z`);
+    // Gerador de datas para nível DIA (incluindo os dias zerados)
+    if (nivelDrill === 'dia') {
+      let dataInicio: Date;
+      let dataFim: Date;
 
-      while (dataCursor <= dataLimite) {
+      if (escopoGrafico && escopoGrafico.tipo === 'mes') {
+        const [ano, mes] = escopoGrafico.chave.split('-').map(Number);
+        dataInicio = new Date(Date.UTC(ano, mes - 1, 1));
+        const ultimoDiaDoMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+        dataFim = new Date(Date.UTC(ano, mes - 1, ultimoDiaDoMes));
+      } else if (relatorioDataInicio && relatorioDataFim) {
+        dataInicio = new Date(`${relatorioDataInicio}T00:00:00Z`);
+        dataFim = new Date(`${relatorioDataFim}T00:00:00Z`);
+      } else {
+        const agora = new Date();
+        dataInicio = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), 1));
+        dataFim = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()));
+      }
+
+      let dataCursor = new Date(dataInicio);
+      while (dataCursor <= dataFim) {
         const diaIso = dataCursor.toISOString().slice(0, 10);
         grupos[diaIso] = {};
         totaisPorGrupo[diaIso] = 0;
@@ -483,7 +498,7 @@ export default function App() {
       chavesOrdenadas, grupos, totaisPorGrupo, maiorValorTotal, totalPeriodo,
       clinicasPresentes: Array.from(clinicasPresentes), formatarRotulo, mapaCoresClinicas
     };
-  }, [registosRelatorioFiltrados, clinicas, nivelDrill, escopoGrafico]);
+  }, [registosRelatorioFiltrados, clinicas, nivelDrill, escopoGrafico, relatorioDataInicio, relatorioDataFim]);
 
   const metricasDashboard = useMemo(() => {
     let totalGeral = 0, totalPago = 0, totalPendente = 0, caes = 0, gatos = 0;
