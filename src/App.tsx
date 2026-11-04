@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import { 
   Syringe, Plus, Activity, Loader2, 
-  Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut
+  Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut, MessageCircle
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
@@ -549,28 +549,33 @@ export default function App() {
     };
   }, [registosRelatorioFiltrados]);
 
-  const copiarWhatsAppPendencias = (clinicaFiltro?: string) => {
+  const enviarWhatsAppClinica = (clinicaNome: string) => {
+    const dados = metricasDashboard.pendentesPorClinica[clinicaNome];
+
+    if (!dados || dados.fichas.length === 0) {
+      alert("Não existem pendências para esta clínica.");
+      return;
+    }
+
     let texto = `📋 *PENDÊNCIAS FINANCEIRAS - ANESTVET*\n\n`;
-    let totalGeral = 0;
+    texto += `Olá! Segue a relação de procedimentos pendentes da clínica *${clinicaNome}*.\n\n`;
 
-    Object.entries(metricasDashboard.pendentesPorClinica).forEach(([cNome, dados]) => {
-      if (clinicaFiltro && cNome !== clinicaFiltro) return;
-      texto += `🏥 *${cNome}*\n`;
-      dados.fichas.forEach(f => {
-        const val = f.valor || '0,00';
-        texto += `  • ${formatarDataBR(f.dataProc)} - ${f.paciente} (${f.especie || 'Canino'}) - ${f.procedimento}: R$ ${val}\n`;
-      });
-      texto += `*Subtotal:* R$ ${dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n\n`;
-      totalGeral += dados.valor;
+    dados.fichas.forEach(f => {
+      texto += `🐾 *${f.paciente}* (${f.especie || 'Canino'})\n`;
+      texto += `📅 Data: ${formatarDataBR(f.dataProc)}\n`;
+      texto += `🏥 Procedimento: ${f.procedimento}\n`;
+      texto += `💰 Valor: R$ ${f.valor || '0,00'}\n\n`;
     });
 
-    texto += `💰 *TOTAL RETIDO:* R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    texto += `━━━━━━━━━━━━━━\n`;
+    texto += `📌 *TOTAL DE PROCEDIMENTOS:* ${dados.qtd}\n`;
+    texto += `💰 *TOTAL PENDENTE: R$ ${dados.valor.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2
+    })}*\n\n`;
+    texto += `Obrigado!`;
 
-    navigator.clipboard.writeText(texto).then(() => {
-      alert("Lista de pendências copiada! Abra o WhatsApp e cole a mensagem.");
-    }).catch(() => {
-      alert("Não foi possível copiar automaticamente. Selecione e copie o texto manualmente.");
-    });
+    const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const limparFiltrosRelatorio = () => {
@@ -1405,12 +1410,7 @@ export default function App() {
                 <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
                   <Clock className="w-5 h-5 text-amber-600" /> Pendências Financeiras
                 </h2>
-                <button
-                  onClick={() => copiarWhatsAppPendencias()}
-                  className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl hover:bg-emerald-700 transition-colors"
-                >
-                  Copiar p/ WhatsApp
-                </button>
+
               </div>
 
               <div className="space-y-2 text-xs">
@@ -1429,6 +1429,17 @@ export default function App() {
 
                     {clinicaExpandidaPendencia === cNome && (
                       <div className="p-3 bg-white space-y-2 border-t border-gray-100">
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => enviarWhatsAppClinica(cNome)}
+                            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-[10px] font-semibold shadow-sm transition-colors"
+                            title={`Enviar pendências de ${cNome} pelo WhatsApp`}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            Enviar WhatsApp
+                          </button>
+                        </div>
                         {dados.fichas.map(f => (
                           <div key={f.id} className="flex justify-between items-center text-[11px] border-b pb-1.5 last:border-0">
                             <div>
