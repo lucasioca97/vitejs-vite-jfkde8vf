@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import { 
   Syringe, Plus, Activity, Loader2, 
-  Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut, MessageCircle
+  Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut, MessageCircle, Lock
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
 
 // Tipagens TypeScript
 interface Registo {
@@ -46,6 +47,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 const PALETA_CORES = [
   '#0284c7', '#0369a1', '#2563eb', '#3b82f6', '#0ea5e9', 
@@ -53,6 +55,14 @@ const PALETA_CORES = [
 ];
 
 export default function App() {
+  // Autenticação Firebase
+  const [user, setUser] = useState<User | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [emailLogin, setEmailLogin] = useState('');
+  const [senhaLogin, setSenhaLogin] = useState('');
+  const [erroLogin, setErroLogin] = useState('');
+
+  // Estados dos Dados
   const [registos, setRegistos] = useState<Registo[]>([]);
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [cirurgioes, setCirurgioes] = useState<Cirurgiao[]>([]);
@@ -117,31 +127,59 @@ export default function App() {
   const [fatiaHover, setFatiaHover] = useState<{ id: string; nome: string; valor: number; porcentagem: number; cor: string } | null>(null);
   const [clinicaExpandidaPendencia, setClinicaExpandidaPendencia] = useState<string | null>(null);
 
-  // Escuta Firebase em tempo real
+  // Monitorizar estado da Autenticação
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoadingAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Escuta Firebase em tempo real (apenas se o utilizador estiver logado)
+  useEffect(() => {
+    if (!user) return;
     const q = query(collection(db, 'anestesias'), orderBy('dataCriacao', 'desc'));
     return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Registo[];
       setRegistos(dados);
-    });
-  }, []);
+    }, () => alert("Erro ao carregar dados dos registos."));
+  }, [user]);
 
   useEffect(() => {
+    if (!user) return;
     const q = query(collection(db, 'clinicas'), orderBy('nome', 'asc'));
     return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Clinica[];
       setClinicas(dados);
-    });
-  }, []);
+    }, () => alert("Erro ao carregar clínicas."));
+  }, [user]);
 
   useEffect(() => {
+    if (!user) return;
     const q = query(collection(db, 'cirurgioes'), orderBy('nome', 'asc'));
     return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Cirurgiao[];
       setCirurgioes(dados);
-    });
-  }, []);
+    }, () => alert("Erro ao carregar cirurgiões."));
+  }, [user]);
 
+  // Handlers Autenticação
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    setErroLogin('');
+    try {
+      await signInWithEmailAndPassword(auth, emailLogin, senhaLogin);
+    } catch {
+      setErroLogin('E-mail ou palavra-passe incorretos.');
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
+
+  // Funções Utilitárias e Sanitização
   const handlePesoChange = (valRaw: string, isEdit = false) => {
     const val = valRaw.replace(/[^0-9.,]/g, '');
     if (val.length <= 6) {
@@ -183,9 +221,8 @@ export default function App() {
       setPaciente(''); setEspecie('Canino'); setPeso(''); setFormaPgto('Pix');
       setStatusPgto('Pago'); setTutor(''); setProcedimento(''); setComplexidade('Média'); setObservacoes('');
       setAbaAtiva('historico');
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao guardar: " + err.message);
+    } catch {
+      alert("Erro ao guardar o registo.");
     }
     setSalvando(false);
   };
@@ -204,18 +241,16 @@ export default function App() {
         formaPgto: quitFormaPgto
       });
       setModalQuitacao(null);
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao quitar: " + err.message);
+    } catch {
+      alert("Erro ao quitar procedimento.");
     }
   };
 
   const alternarStatusPendente = async (id: string) => {
     try {
       await updateDoc(doc(db, 'anestesias', id), { dataPgto: '', formaPgto: '' });
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao alterar status: " + err.message);
+    } catch {
+      alert("Erro ao alterar status.");
     }
   };
 
@@ -223,9 +258,8 @@ export default function App() {
     if (confirm(`Deseja excluir a ficha do paciente "${nomePaciente}"?`)) {
       try {
         await deleteDoc(doc(db, 'anestesias', id));
-      } catch (error: unknown) {
-        const err = error as Error;
-        alert("Erro ao excluir: " + err.message);
+      } catch {
+        alert("Erro ao excluir ficha.");
       }
     }
   };
@@ -257,9 +291,8 @@ export default function App() {
         observacoes: editFichaData.observacoes || ''
       });
       setFichaEditandoId(null);
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao atualizar: " + err.message);
+    } catch {
+      alert("Erro ao atualizar ficha.");
     }
   };
 
@@ -291,11 +324,9 @@ export default function App() {
     });
   }, [registos, buscaHistorico, filtroClinicaHistorico, filtroStatusHistorico, filtroDataInicio, filtroDataFim, ordenacaoHistorico]);
 
-  // Registos Filtrados exclusivamente para a aba de Relatórios
   const registosRelatorioFiltrados = useMemo(() => {
     return registos.filter(item => {
       const bateClinica = !relatorioClinica || item.local === relatorioClinica;
-      
       let bateStatus = true;
       if (relatorioStatus === 'pago') bateStatus = Boolean(item.dataPgto);
       if (relatorioStatus === 'pendente') bateStatus = !item.dataPgto;
@@ -308,11 +339,33 @@ export default function App() {
     });
   }, [registos, relatorioClinica, relatorioStatus, relatorioDataInicio, relatorioDataFim]);
 
+  // Prevenção contra CSV Injection
+  const sanitizeCsvField = (field: string | undefined) => {
+    if (!field) return '""';
+    const clean = field.replace(/"/g, '""');
+    if (/^[=+\-@;]/.test(clean)) {
+      return `"'${clean}"`;
+    }
+    return `"${clean}"`;
+  };
+
   const exportarCSV = () => {
     if (registosFiltradosEOrdenados.length === 0) return;
     const cabecalho = ["Data Procedimento", "Paciente", "Espécie", "Peso (kg)", "Procedimento", "Complexidade", "Tutor", "Local / Clínica", "Cirurgião", "Valor (R$)", "Forma Pagamento", "Data Pagamento", "Observações"];
     const linhas = registosFiltradosEOrdenados.map(r => [
-      `"${r.dataProc || ''}"`, `"${r.paciente || ''}"`, `"${r.especie || 'Canino'}"`, `"${r.peso || ''}"`, `"${r.procedimento || ''}"`, `"${r.complexidade || 'Média'}"`, `"${r.tutor || ''}"`, `"${r.local || ''}"`, `"${r.cirurgiao || ''}"`, `"${r.valor || ''}"`, `"${r.formaPgto || ''}"`, `"${r.dataPgto || ''}"`, `"${(r.observacoes || '').replace(/"/g, '""')}"`
+      sanitizeCsvField(r.dataProc),
+      sanitizeCsvField(r.paciente),
+      sanitizeCsvField(r.especie || 'Canino'),
+      sanitizeCsvField(r.peso),
+      sanitizeCsvField(r.procedimento),
+      sanitizeCsvField(r.complexidade || 'Média'),
+      sanitizeCsvField(r.tutor),
+      sanitizeCsvField(r.local),
+      sanitizeCsvField(r.cirurgiao),
+      sanitizeCsvField(r.valor),
+      sanitizeCsvField(r.formaPgto),
+      sanitizeCsvField(r.dataPgto),
+      sanitizeCsvField(r.observacoes)
     ]);
     const conteudoCSV = "\uFEFF" + [cabecalho.join(";"), ...linhas.map(l => l.join(";"))].join("\n");
     const blob = new Blob([conteudoCSV], { type: 'text/csv;charset=utf-8;' });
@@ -334,18 +387,16 @@ export default function App() {
     try {
       await addDoc(collection(db, 'clinicas'), { nome: novaClinicaNome.trim(), dataCriacao: serverTimestamp() });
       setNovaClinicaNome('');
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao cadastrar clínica: " + err.message);
+    } catch {
+      alert("Erro ao cadastrar clínica.");
     }
     setSalvandoClinica(false);
   };
 
   const excluirClinica = async (id: string, nome: string) => {
     if (confirm(`Excluir clínica "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'clinicas', id)); } catch (error: unknown) {
-        const err = error as Error;
-        alert("Erro ao excluir: " + err.message);
+      try { await deleteDoc(doc(db, 'clinicas', id)); } catch {
+        alert("Erro ao excluir clínica.");
       }
     }
   };
@@ -355,9 +406,8 @@ export default function App() {
     try {
       await updateDoc(doc(db, 'clinicas', id), { nome: nomeClinicaEditado.trim() });
       setClinicaEditandoId(null); setNomeClinicaEditado('');
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao atualizar: " + err.message);
+    } catch {
+      alert("Erro ao atualizar clínica.");
     }
   };
 
@@ -368,18 +418,16 @@ export default function App() {
     try {
       await addDoc(collection(db, 'cirurgioes'), { nome: novoCirurgiaoNome.trim(), dataCriacao: serverTimestamp() });
       setNovoCirurgiaoNome('');
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao cadastrar cirurgião: " + err.message);
+    } catch {
+      alert("Erro ao cadastrar cirurgião.");
     }
     setSalvandoCirurgiao(false);
   };
 
   const excluirCirurgiao = async (id: string, nome: string) => {
     if (confirm(`Excluir cirurgião "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'cirurgioes', id)); } catch (error: unknown) {
-        const err = error as Error;
-        alert("Erro ao excluir: " + err.message);
+      try { await deleteDoc(doc(db, 'cirurgioes', id)); } catch {
+        alert("Erro ao excluir cirurgião.");
       }
     }
   };
@@ -389,9 +437,8 @@ export default function App() {
     try {
       await updateDoc(doc(db, 'cirurgioes', id), { nome: nomeCirurgiaoEditado.trim() });
       setCirurgiaoEditandoId(null); setNomeCirurgiaoEditado('');
-    } catch (error: unknown) {
-      const err = error as Error;
-      alert("Erro ao atualizar: " + err.message);
+    } catch {
+      alert("Erro ao atualizar cirurgião.");
     }
   };
 
@@ -431,7 +478,6 @@ export default function App() {
     const clinicasPresentes = new Set<string>();
     let totalPeriodo = 0;
 
-    // Gerador de datas para nível DIA (incluindo os dias zerados)
     if (nivelDrill === 'dia') {
       let dataInicio: Date;
       let dataFim: Date;
@@ -618,6 +664,72 @@ export default function App() {
     setRelatorioDataFim('');
   };
 
+  // 1. Ecrã de Carregamento da Autenticação
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-[#f8faf8] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#0284c7] animate-spin" />
+      </div>
+    );
+  }
+
+  // 2. Ecrã de Login (Utilizador não autenticado)
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#f8faf8] flex items-center justify-center p-4 font-sans">
+        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-xl w-full max-w-sm space-y-5 text-left">
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 bg-[#0284c7] rounded-full flex items-center justify-center text-white mx-auto shadow-md shadow-sky-500/20">
+              <Syringe className="w-6 h-6 -rotate-45" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">AnestVet</h1>
+            <p className="text-xs text-gray-500">Inicie sessão para aceder ao sistema</p>
+          </div>
+
+          {erroLogin && (
+            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-semibold">
+              {erroLogin}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">E-mail</label>
+              <input 
+                type="email" 
+                required 
+                value={emailLogin}
+                onChange={(e) => setEmailLogin(e.target.value)}
+                placeholder="seu.email@exemplo.com"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#0284c7]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Palavra-passe</label>
+              <input 
+                type="password" 
+                required 
+                value={senhaLogin}
+                onChange={(e) => setSenhaLogin(e.target.value)}
+                placeholder="••••••••"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#0284c7]"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-[#0284c7] text-white py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 hover:bg-sky-700 transition-colors"
+            >
+              <Lock className="w-4 h-4" /> Entrar
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Aplicação Principal (Utilizador autenticado)
   return (
     <div className="min-h-screen bg-[#f8faf8] text-gray-800 font-sans pb-28">
       
@@ -629,12 +741,16 @@ export default function App() {
           </div>
           <span className="font-bold text-xl text-gray-900 tracking-tight">AnestVet</span>
         </div>
-        <button className="text-gray-500 hover:text-gray-800 transition-colors p-1">
-          <LogOut className="w-6 h-6" />
+        <button 
+          onClick={handleLogout}
+          title="Sair da conta"
+          className="text-gray-500 hover:text-red-600 transition-colors p-1 flex items-center gap-1.5 text-xs font-semibold"
+        >
+          <LogOut className="w-5 h-5" /> Sair
         </button>
       </header>
 
-      {/* Main Container Alinhado à Esquerda */}
+      {/* Main Container */}
       <main className="p-4 max-w-lg mx-auto w-full text-left">
         
         {/* VIEW: REGISTROS */}
@@ -1261,7 +1377,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Filtro Status (Todos / Pago / Pendente) */}
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Status de Pagamento</label>
                 <div className="flex gap-1.5">
@@ -1285,7 +1400,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Filtro de Clínica */}
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Clínica / Local</label>
                 <select 
@@ -1298,7 +1412,6 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Filtro de Período (Data Início / Fim) */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Período De</label>
@@ -1365,7 +1478,7 @@ export default function App() {
                         <span className="text-[10px] font-bold text-gray-500 mb-1">R${total > 1000 ? `${(total/1000).toFixed(1)}k` : total}</span>
                         <div 
                           style={{ height: `${Math.max(alt, 6)}px` }} 
-                          className="w-8 bg-[#0284c7] rounded-t-lg group-hover:bg-sky-700 transition-all"
+                          className="w-8 bg-[#0284c7] rounded-t-lg group-hover:bg-sky-[#0284c7]/80 transition-all"
                         />
                         <span className="text-[10px] font-semibold text-gray-600 mt-2">{dadosGraficoDrill.formatarRotulo(ch)}</span>
                       </div>
@@ -1413,7 +1526,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Tabela Alinhada com Grid */}
               <div className="space-y-1.5 border-t border-gray-100 pt-3 text-xs font-semibold">
                 {metricasDashboard.fatiasSVG.map(fatia => (
                   <div 
@@ -1443,7 +1555,6 @@ export default function App() {
                 <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
                   <Clock className="w-5 h-5 text-amber-600" /> Pendências Financeiras
                 </h2>
-
               </div>
 
               <div className="space-y-2 text-xs">
