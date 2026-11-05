@@ -803,30 +803,50 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8faf8] text-gray-800 font-sans pb-28">
       
-      {/* Top Navbar */}
-      <header className="bg-white border-b border-gray-100 px-5 py-3.5 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 bg-[#0284c7] rounded-full flex items-center justify-center text-white shadow-md shadow-sky-500/20">
-            <Syringe className="w-5 h-5 -rotate-45" />
+      {/* Cabeçalho: identidade do sistema e conta autenticada */}
+      <header className="sticky top-0 z-20 border-b border-sky-100 bg-white/95 shadow-sm backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-3 py-3 sm:px-5">
+          <div className="flex min-w-0 shrink-0 items-center gap-2.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-sky-700 text-white shadow-md shadow-sky-500/20">
+              <Syringe className="h-5 w-5 -rotate-45" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-lg font-extrabold tracking-tight text-slate-900 sm:text-xl">AnestVet</span>
+              <span className="hidden text-[10px] font-medium tracking-wide text-slate-400 sm:block">Gestão de anestesias</span>
+            </div>
           </div>
-          <span className="font-bold text-xl text-gray-900 tracking-tight">AnestVet</span>
+
+          <div className="flex min-w-0 items-center gap-2">
+            <div
+              className="flex min-w-0 items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 px-2.5 py-2 sm:px-3"
+              title={user.email || 'Conta conectada'}
+            >
+              <div className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-sky-600 shadow-sm sm:flex">
+                <UserCheck className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="hidden text-[10px] font-semibold uppercase tracking-wide text-sky-600 sm:block">Conta conectada</span>
+                <span className="block max-w-[135px] truncate text-[11px] font-semibold text-slate-700 sm:max-w-[240px] sm:text-xs">
+                  {user.email || 'Usuário autenticado'}
+                </span>
+              </div>
+              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-label="Conectado" />
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Sair da conta"
+              aria-label="Sair da conta"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-white text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-        <button 
-          onClick={handleLogout}
-          title="Sair da conta"
-          className="text-gray-500 hover:text-red-600 transition-colors p-1 flex items-center gap-1.5 text-xs font-semibold"
-        >
-          <LogOut className="w-5 h-5" /> Sair
-        </button>
       </header>
 
       {/* Main Container */}
       <main className="p-4 max-w-lg mx-auto w-full text-left">
-        <div className="mb-3 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-[11px] text-sky-800 break-all">
-          <span className="font-bold">Conta conectada:</span> {user.email || '(sem e-mail)'}
-          <span className="block"><span className="font-bold">UID:</span> {user.uid}</span>
-        </div>
-
         {Object.keys(errosCarregamento).length > 0 && (
           <div role="alert" className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             <p className="font-bold mb-2">Falha ao consultar o Firebase</p>
