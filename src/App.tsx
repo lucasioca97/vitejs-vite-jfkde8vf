@@ -13,7 +13,7 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, type 
 // Tipagens TypeScript
 interface Registo {
   id: string;
-  userId?: string;
+  userId: string;
   paciente: string;
   especie?: string;
   peso?: string;
@@ -31,13 +31,13 @@ interface Registo {
 
 interface Clinica {
   id: string;
-  userId?: string;
+  userId: string;
   nome: string;
 }
 
 interface Cirurgiao {
   id: string;
-  userId?: string;
+  userId: string;
   nome: string;
 }
 
@@ -141,39 +141,6 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
-
-  // Migração automática de registos antigos que não possuem userId
-  useEffect(() => {
-    if (!user) return;
-
-    const migrarDadosAntigos = async () => {
-      const colecoes = ['anestesias', 'clinicas', 'cirurgioes'];
-      for (const nomeColecao of colecoes) {
-        try {
-          const snapshot = await getDocs(collection(db, nomeColecao));
-          const batch = writeBatch(db);
-          let alterados = 0;
-
-          snapshot.docs.forEach((documento) => {
-            const data = documento.data();
-            if (!data.userId) {
-              batch.update(doc(db, nomeColecao, documento.id), { userId: user.uid });
-              alterados++;
-            }
-          });
-
-          if (alterados > 0) {
-            await batch.commit();
-            console.log(`${alterados} item(ns) da coleção "${nomeColecao}" associados ao seu utilizador.`);
-          }
-        } catch (err) {
-          console.error(`Erro ao migrar ${nomeColecao}:`, err);
-        }
-      }
-    };
-
-    migrarDadosAntigos();
-  }, [user]);
 
   // Escuta Firebase em tempo real (filtrado por userId do utilizador)
   useEffect(() => {
