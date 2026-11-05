@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 
 // Tipagens TypeScript
 interface Registo {
