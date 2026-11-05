@@ -63,6 +63,15 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+// Data local no formato YYYY-MM-DD (evita a virada antecipada por UTC).
+const hojeLocal = (): string => {
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = String(agora.getMonth() + 1).padStart(2, '0');
+  const dia = String(agora.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+};
+
 const PALETA_CORES = [
   '#0284c7', '#0369a1', '#2563eb', '#3b82f6', '#0ea5e9', 
   '#06b6d4', '#6366f1', '#8b5cf6', '#10b981', '#f59e0b'
@@ -104,7 +113,7 @@ export default function App() {
   const [relatorioDataFim, setRelatorioDataFim] = useState('');
 
   // Campos do Formulário
-  const [dataProc, setDataProc] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dataProc, setDataProc] = useState(() => hojeLocal());
   const [local, setLocal] = useState('');
   const [valor, setValor] = useState('');
   const [cirurgiao, setCirurgiao] = useState('');
@@ -122,7 +131,7 @@ export default function App() {
   // Modais e Edições
   const [modalQuitacao, setModalQuitacao] = useState<{ id: string; paciente: string } | null>(null);
   const [quitFormaPgto, setQuitFormaPgto] = useState('Pix');
-  const [quitDataPgto, setQuitDataPgto] = useState(() => new Date().toISOString().slice(0, 10));
+  const [quitDataPgto, setQuitDataPgto] = useState(() => hojeLocal());
 
   const [novaClinicaNome, setNovaClinicaNome] = useState('');
   const [clinicaEditandoId, setClinicaEditandoId] = useState<string | null>(null);
@@ -265,7 +274,7 @@ export default function App() {
     setSalvando(true);
     try {
       const dataPagamentoFinal = statusPgto === 'Pago' 
-        ? (dataPgto || new Date().toISOString().slice(0, 10))
+        ? (dataPgto || hojeLocal())
         : '';
 
       await addDoc(collection(db, 'anestesias'), {
@@ -278,7 +287,7 @@ export default function App() {
         dataCriacao: serverTimestamp()
       });
 
-      setDataProc(new Date().toISOString().slice(0, 10));
+      setDataProc(hojeLocal());
       setLocal(''); setValor(''); setCirurgiao(''); setDataPgto('');
       setPaciente(''); setEspecie('Canino'); setPeso(''); setFormaPgto('Pix');
       setStatusPgto('Pago'); setTutor(''); setProcedimento(''); setComplexidade('Média'); setObservacoes('');
@@ -292,7 +301,7 @@ export default function App() {
   const abrirModalQuitacao = (id: string, nomePaciente: string) => {
     setModalQuitacao({ id, paciente: nomePaciente });
     setQuitFormaPgto('Pix');
-    setQuitDataPgto(new Date().toISOString().slice(0, 10));
+    setQuitDataPgto(hojeLocal());
   };
 
   const confirmarQuitacao = async () => {
@@ -435,7 +444,7 @@ export default function App() {
     
     const linkDownload = document.createElement('a');
     linkDownload.setAttribute('href', url);
-    linkDownload.setAttribute('download', `anestvet_registros_${new Date().toISOString().slice(0, 10)}.csv`);
+    linkDownload.setAttribute('download', `anestvet_registros_${hojeLocal()}.csv`);
     document.body.appendChild(linkDownload);
     linkDownload.click();
     document.body.removeChild(linkDownload);
@@ -460,15 +469,30 @@ export default function App() {
   };
 
   const excluirClinica = async (id: string, nome: string) => {
-    if (confirm(`Excluir clínica "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'clinicas', id)); } catch {
-        alert("Erro ao excluir clínica.");
-      }
+    // Os registros antigos fazem referência à clínica pelo nome.
+    // Evita remover o cadastro enquanto houver registros associados.
+    const associados = registos.filter(r => r.local === nome).length;
+    if (associados > 0) {
+      alert(`Não é possível excluir a clínica "${nome}": existem ${associados} registro(s) associados. Preserve o histórico antes de alterar esse cadastro.`);
+      return;
+    }
+    if (!confirm(`Excluir clínica "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await deleteDoc(doc(db, 'clinicas', id));
+    } catch (error) {
+      console.error('Erro ao excluir clínica:', error);
+      alert('Não foi possível excluir a clínica. Confira sua conexão e suas permissões.');
     }
   };
 
   const salvarEdicaoClinica = async (id: string) => {
     if (!nomeClinicaEditado.trim()) return;
+    const clinicaAnterior = clinicas.find(c => c.id === id);
+    if (clinicaAnterior && clinicaAnterior.nome !== nomeClinicaEditado.trim() &&
+        registos.some(r => r.local === clinicaAnterior.nome)) {
+      alert('Esta clínica está vinculada a registros existentes. A edição do nome foi bloqueada para preservar o histórico. Uma futura migração por IDs permitirá renomeá-la com segurança.');
+      return;
+    }
     try {
       await updateDoc(doc(db, 'clinicas', id), { nome: nomeClinicaEditado.trim() });
       setClinicaEditandoId(null); setNomeClinicaEditado('');
@@ -495,15 +519,29 @@ export default function App() {
   };
 
   const excluirCirurgiao = async (id: string, nome: string) => {
-    if (confirm(`Excluir cirurgião "${nome}"?`)) {
-      try { await deleteDoc(doc(db, 'cirurgioes', id)); } catch {
-        alert("Erro ao excluir cirurgião.");
-      }
+    // Mantém a integridade dos vínculos históricos por nome.
+    const associados = registos.filter(r => r.cirurgiao === nome).length;
+    if (associados > 0) {
+      alert(`Não é possível excluir o cirurgião "${nome}": existem ${associados} registro(s) associados. Preserve o histórico antes de alterar esse cadastro.`);
+      return;
+    }
+    if (!confirm(`Excluir cirurgião "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await deleteDoc(doc(db, 'cirurgioes', id));
+    } catch (error) {
+      console.error('Erro ao excluir cirurgião:', error);
+      alert('Não foi possível excluir o cirurgião. Confira sua conexão e suas permissões.');
     }
   };
 
   const salvarEdicaoCirurgiao = async (id: string) => {
     if (!nomeCirurgiaoEditado.trim()) return;
+    const cirurgiaoAnterior = cirurgioes.find(c => c.id === id);
+    if (cirurgiaoAnterior && cirurgiaoAnterior.nome !== nomeCirurgiaoEditado.trim() &&
+        registos.some(r => r.cirurgiao === cirurgiaoAnterior.nome)) {
+      alert('Este cirurgião está vinculado a registros existentes. A edição do nome foi bloqueada para preservar o histórico. Uma futura migração por IDs permitirá renomeá-lo com segurança.');
+      return;
+    }
     try {
       await updateDoc(doc(db, 'cirurgioes', id), { nome: nomeCirurgiaoEditado.trim() });
       setCirurgiaoEditandoId(null); setNomeCirurgiaoEditado('');
