@@ -4,12 +4,16 @@ import {
   Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut, MessageCircle, Lock
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { 
+  getFirestore, collection, addDoc, onSnapshot, query, orderBy, 
+  serverTimestamp, doc, deleteDoc, updateDoc, where, getDocs, writeBatch 
+} from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 
 // Tipagens TypeScript
 interface Registo {
   id: string;
+  userId?: string;
   paciente: string;
   especie?: string;
   peso?: string;
@@ -27,11 +31,13 @@ interface Registo {
 
 interface Clinica {
   id: string;
+  userId?: string;
   nome: string;
 }
 
 interface Cirurgiao {
   id: string;
+  userId?: string;
   nome: string;
 }
 
@@ -136,10 +142,47 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Escuta Firebase em tempo real (apenas se o utilizador estiver logado)
+  // Migração automática de registos antigos que não possuem userId
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'anestesias'), orderBy('dataCriacao', 'desc'));
+
+    const migrarDadosAntigos = async () => {
+      const colecoes = ['anestesias', 'clinicas', 'cirurgioes'];
+      for (const nomeColecao of colecoes) {
+        try {
+          const snapshot = await getDocs(collection(db, nomeColecao));
+          const batch = writeBatch(db);
+          let alterados = 0;
+
+          snapshot.docs.forEach((documento) => {
+            const data = documento.data();
+            if (!data.userId) {
+              batch.update(doc(db, nomeColecao, documento.id), { userId: user.uid });
+              alterados++;
+            }
+          });
+
+          if (alterados > 0) {
+            await batch.commit();
+            console.log(`${alterados} item(ns) da coleção "${nomeColecao}" associados ao seu utilizador.`);
+          }
+        } catch (err) {
+          console.error(`Erro ao migrar ${nomeColecao}:`, err);
+        }
+      }
+    };
+
+    migrarDadosAntigos();
+  }, [user]);
+
+  // Escuta Firebase em tempo real (filtrado por userId do utilizador)
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'anestesias'), 
+      where('userId', '==', user.uid),
+      orderBy('dataCriacao', 'desc')
+    );
     return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Registo[];
       setRegistos(dados);
@@ -148,7 +191,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'clinicas'), orderBy('nome', 'asc'));
+    const q = query(
+      collection(db, 'clinicas'), 
+      where('userId', '==', user.uid),
+      orderBy('nome', 'asc')
+    );
     return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Clinica[];
       setClinicas(dados);
@@ -157,7 +204,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'cirurgioes'), orderBy('nome', 'asc'));
+    const q = query(
+      collection(db, 'cirurgioes'), 
+      where('userId', '==', user.uid),
+      orderBy('nome', 'asc')
+    );
     return onSnapshot(q, (snapshot) => {
       const dados = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Cirurgiao[];
       setCirurgioes(dados);
@@ -201,6 +252,7 @@ export default function App() {
 
   const guardarRegisto = async (e: FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     setSalvando(true);
     try {
       const dataPagamentoFinal = statusPgto === 'Pago' 
@@ -208,6 +260,7 @@ export default function App() {
         : '';
 
       await addDoc(collection(db, 'anestesias'), {
+        userId: user.uid,
         dataProc, local, valor, cirurgiao,
         dataPgto: dataPagamentoFinal,
         paciente, especie, peso,
@@ -382,10 +435,14 @@ export default function App() {
 
   const guardarClinica = async (e: FormEvent) => {
     e.preventDefault();
-    if (!novaClinicaNome.trim()) return;
+    if (!novaClinicaNome.trim() || !user) return;
     setSalvandoClinica(true);
     try {
-      await addDoc(collection(db, 'clinicas'), { nome: novaClinicaNome.trim(), dataCriacao: serverTimestamp() });
+      await addDoc(collection(db, 'clinicas'), { 
+        userId: user.uid, 
+        nome: novaClinicaNome.trim(), 
+        dataCriacao: serverTimestamp() 
+      });
       setNovaClinicaNome('');
     } catch {
       alert("Erro ao cadastrar clínica.");
@@ -413,10 +470,14 @@ export default function App() {
 
   const guardarCirurgiao = async (e: FormEvent) => {
     e.preventDefault();
-    if (!novoCirurgiaoNome.trim()) return;
+    if (!novoCirurgiaoNome.trim() || !user) return;
     setSalvandoCirurgiao(true);
     try {
-      await addDoc(collection(db, 'cirurgioes'), { nome: novoCirurgiaoNome.trim(), dataCriacao: serverTimestamp() });
+      await addDoc(collection(db, 'cirurgioes'), { 
+        userId: user.uid, 
+        nome: novoCirurgiaoNome.trim(), 
+        dataCriacao: serverTimestamp() 
+      });
       setNovoCirurgiaoNome('');
     } catch {
       alert("Erro ao cadastrar cirurgião.");
