@@ -4,9 +4,18 @@ import {
   Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut, MessageCircle, Lock
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, collection, addDoc, onSnapshot, query, orderBy, 
-  serverTimestamp, doc, deleteDoc, updateDoc, where, getDocs, writeBatch 
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+  doc,
+  deleteDoc,
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 
