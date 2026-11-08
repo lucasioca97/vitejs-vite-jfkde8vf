@@ -62,6 +62,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const VETSTOCK_API_URL = (import.meta.env.VITE_VETSTOCK_API_URL as string | undefined)?.trim() || '';
+const reais = (n: number) => n.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+type CustoMaterial = {
+  totalCost: number;
+  revision: number;
+  items: {productName:string;lotCode:string;quantity:number;unit:string;unitCost:number;subtotal:number}[];
+};
 
 // Data local no formato YYYY-MM-DD (evita a virada antecipada por UTC).
 const hojeLocal = (): string => {
@@ -87,6 +94,11 @@ export default function App() {
 
   // Estados dos Dados
   const [registos, setRegistos] = useState<Registo[]>([]);
+  const [custosMateriais, setCustosMateriais] = useState<Record<string, CustoMaterial | null>>({});
+  const [custosCarregando, setCustosCarregando] = useState(false);
+  const [custosErro, setCustosErro] = useState('');
+  const [detalheCustoId, setDetalheCustoId] = useState<string | null>(null);
+  const [atualizarCustos, setAtualizarCustos] = useState(0);
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [cirurgioes, setCirurgioes] = useState<Cirurgiao[]>([]);
   const [errosCarregamento, setErrosCarregamento] = useState<Record<string, string>>({});
@@ -159,6 +171,46 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Custos são lidos do VetStock, sem copiar valores no AnestVet nem movimentar estoque.
+  // Busca em blocos para evitar URL longa; nova consulta reflete qualquer correção de consumo.
+  const idsCustos = useMemo(() => registos.map(r => r.id).sort().join(','), [registos]);
+  useEffect(() => {
+    if (!user || !VETSTOCK_API_URL || !idsCustos) {
+      setCustosMateriais({}); setCustosErro(''); setCustosCarregando(false);
+      return;
+    }
+    const controller = new AbortController();
+    let alive = true;
+    const buscarCustos = async () => {
+      setCustosCarregando(true);
+      setCustosErro('');
+      try {
+        const token = await user.getIdToken();
+        const ids = idsCustos.split(',');
+        const next: Record<string, CustoMaterial | null> = {};
+        for (let i = 0; i < ids.length; i += 60) {
+          const baseUrl = VETSTOCK_API_URL.replace(/\/$/, '');
+          const url = `${baseUrl}/api/procedures?view=costs&ids=${encodeURIComponent(ids.slice(i,i+60).join(','))}`;
+          const response = await fetch(url, {
+            headers: {Authorization: `Bearer ${token}`},
+            signal: controller.signal,
+            cache: 'no-store'
+          });
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.error || 'Falha ao carregar custos');
+          Object.assign(next, json.costs || {});
+        }
+        if (alive) setCustosMateriais(next);
+      } catch (error) {
+        if (alive && !controller.signal.aborted) {
+          setCustosErro(error instanceof Error ? error.message : 'Não foi possível consultar os custos');
+        }
+      } finally { if (alive) setCustosCarregando(false); }
+    };
+    void buscarCustos();
+    return () => { alive = false; controller.abort(); };
+  }, [user, idsCustos, atualizarCustos]);
 
   // Consultas por proprietario: a ordenacao e feita no cliente para nao
   // depender de indices compostos (userId + dataCriacao/nome).
@@ -898,6 +950,11 @@ export default function App() {
         )}
 
         
+        {VETSTOCK_API_URL && abaAtiva === 'historico' && custosErro && (
+          <div role="alert" className="mb-3 p-3 border border-amber-200 bg-amber-50 rounded-xl text-xs text-amber-800">
+            Custos VetStock indisponíveis: {custosErro}. Os registros de anestesia continuam funcionando normalmente.
+          </div>
+        )}
         {/* VIEW: REGISTROS */}
         {abaAtiva === 'historico' && (
           <div className="space-y-4">
@@ -1068,6 +1125,42 @@ export default function App() {
                           </div>
                         </div>
 
+                        {VETSTOCK_API_URL && (
+                          <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-3 mb-3 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-sky-900">Custo dos materiais · VetStock</span>
+                              <button type="button" className="text-[#0284c7] underline underline-offset-2" disabled={custosCarregando} onClick={() => setAtualizarCustos(v => v + 1)}>Atualizar</button>
+                              <span className="font-black text-sky-900">
+                                {custosCarregando && !(item.id in custosMateriais) ? 'Consultando…' :
+                                  custosMateriais[item.id] ? reais(custosMateriais[item.id]!.totalCost) :
+                                  item.id in custosMateriais ? 'Sem lançamento' : 'Indisponível'}
+                              </span>
+                            </div>
+                            {custosMateriais[item.id] && (
+                              <>
+                                <p className="mt-1 text-slate-600">
+                                  Receita menos materiais: {reais(
+                                    (Number(String(item.valor || '0').replace(/\./g, '').replace(',', '.')) || 0) - custosMateriais[item.id]!.totalCost
+                                  )} · Revisão {custosMateriais[item.id]!.revision}
+                                </p>
+                                <button type="button" className="mt-2 text-[#0284c7] font-bold" onClick={() => setDetalheCustoId(detalheCustoId === item.id ? null : item.id)}>
+                                  {detalheCustoId === item.id ? 'Ocultar materiais' : 'Ver materiais utilizados'}
+                                </button>
+                                {detalheCustoId === item.id && (
+                                  <div className="mt-2 space-y-1 border-t border-sky-100 pt-2">
+                                    {custosMateriais[item.id]!.items.map((material, indice) => (
+                                      <div key={`${indice}-${material.lotCode}`} className="flex justify-between gap-2">
+                                        <span>{material.productName} · {material.quantity} {material.unit} · lote {material.lotCode || '—'}</span>
+                                        <strong>{reais(material.subtotal)}</strong>
+                                      </div>
+                                    ))}
+                                    <p className="text-slate-500 mt-2">Valor restante não representa lucro líquido.</p>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 pt-2 border-t border-gray-50">
                           {item.dataPgto ? (
                             <span className="bg-sky-50 text-[#0284c7] text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1 border border-sky-100">
@@ -1126,6 +1219,7 @@ export default function App() {
                       <th className="p-3">Procedimento</th>
                       <th className="p-3">Clínica</th>
                       <th className="p-3">Valor</th>
+                      {VETSTOCK_API_URL && <th className="p-3">Materiais</th>}
                       <th className="p-3 text-right">Ações</th>
                     </tr>
                   </thead>
@@ -1137,6 +1231,7 @@ export default function App() {
                         <td className="p-3">{item.procedimento}</td>
                         <td className="p-3">{item.local || '—'}</td>
                         <td className="p-3 font-bold">R$ {item.valor}</td>
+                        {VETSTOCK_API_URL && <td className="p-3 font-semibold text-sky-700">{custosMateriais[item.id] ? reais(custosMateriais[item.id]!.totalCost) : item.id in custosMateriais ? 'Não lançado' : '—'}</td>}
                         <td className="p-3 text-right space-x-1">
                           <button onClick={() => iniciarEdicaoFicha(item)} className="p-1 text-[#0284c7]"><Pencil className="w-4 h-4" /></button>
                           <button onClick={() => excluirFicha(item.id, item.paciente)} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
