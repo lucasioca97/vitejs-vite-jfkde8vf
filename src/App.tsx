@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, type FormEvent } from 'react';
 import { 
-  Syringe, Plus, Activity, Loader2, 
+  Syringe, Plus, Activity, Loader2, CalendarDays, 
   Clock, Building2, Pencil, Trash2, X, Check, BarChart3, Dog, Download, LayoutGrid, Table, Search, Filter, UserCheck, CheckCircle2, ChevronLeft, LogOut, MessageCircle, Lock
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
@@ -17,6 +17,8 @@ import {
   where
 } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth';
+
+import Agenda from './Agenda';
 
 // Tipagens TypeScript
 interface Registo {
@@ -107,7 +109,7 @@ export default function App() {
   const [salvandoClinica, setSalvandoClinica] = useState(false);
   const [salvandoCirurgiao, setSalvandoCirurgiao] = useState(false);
   
-  const [abaAtiva, setAbaAtiva] = useState<'historico' | 'formulario' | 'clinicas' | 'cirurgioes' | 'dashboard'>('historico');
+  const [abaAtiva, setAbaAtiva] = useState<'historico' | 'formulario' | 'clinicas' | 'cirurgioes' | 'dashboard' | 'agenda'>('historico');
   const [modoVisualizacao, setModoVisualizacao] = useState<'cards' | 'tabela'>('cards');
 
   // Filtros Histórico
@@ -955,6 +957,8 @@ export default function App() {
             Custos VetStock indisponíveis: {custosErro}. Os registros de anestesia continuam funcionando normalmente.
           </div>
         )}
+        {abaAtiva === 'agenda' && <Agenda db={db} userId={user.uid} clinicas={clinicas} cirurgioes={cirurgioes} />}
+
         {/* VIEW: REGISTROS */}
         {abaAtiva === 'historico' && (
           <div className="space-y-4">
@@ -1914,7 +1918,7 @@ export default function App() {
 
       {/* Bottom Navigation Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-2.5 z-20">
-        <div className="max-w-md mx-auto flex justify-between items-center relative">
+        <div className="max-w-lg mx-auto flex justify-between items-center relative">
           
           <button 
             onClick={() => setAbaAtiva('historico')}
@@ -1930,6 +1934,14 @@ export default function App() {
           >
             <Building2 className="w-5 h-5" />
             <span className="text-[10px] font-semibold">Clínicas</span>
+          </button>
+
+          <button
+            onClick={() => setAbaAtiva('agenda')}
+            className={`flex flex-col items-center gap-1 ${abaAtiva === 'agenda' ? 'text-[#0284c7]' : 'text-gray-400'}`}
+          >
+            <CalendarDays className="w-5 h-5" />
+            <span className="text-[10px] font-semibold">Agenda</span>
           </button>
 
           {/* Botão Central */}
