@@ -293,8 +293,23 @@ export default function App() {
     setErroLogin('');
     try {
       await signInWithEmailAndPassword(auth, emailLogin, senhaLogin);
-    } catch {
-      setErroLogin('E-mail ou palavra-passe incorretos.');
+    } catch (error: unknown) {
+      const codigo = typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code: unknown }).code)
+        : 'erro-desconhecido';
+      const mensagens: Record<string, string> = {
+        'auth/invalid-credential': 'E-mail ou senha incorretos.',
+        'auth/wrong-password': 'E-mail ou senha incorretos.',
+        'auth/user-not-found': 'Não encontramos uma conta para este e-mail.',
+        'auth/invalid-email': 'O endereço de e-mail é inválido.',
+        'auth/user-disabled': 'Esta conta está desativada.',
+        'auth/too-many-requests': 'Muitas tentativas. Aguarde antes de tentar novamente.',
+        'auth/network-request-failed': 'Não foi possível conectar ao Firebase. Verifique sua conexão.',
+        'auth/unauthorized-domain': 'Este domínio não está autorizado no Firebase Authentication.',
+        'auth/operation-not-allowed': 'O método de login por e-mail não está habilitado no Firebase.'
+      };
+      console.error('Falha na autenticação Firebase:', codigo);
+      setErroLogin(`${mensagens[codigo] || 'Falha ao entrar no AnestVet.'} (Código: ${codigo})`);
     }
   };
 
